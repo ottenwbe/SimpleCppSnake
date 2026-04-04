@@ -1,0 +1,22 @@
+# Build directory
+/build/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+
+# Conan generated files
+*.pyc
+*.pyo
+
+# SBOM files
+*.json
+
+# Executable file
+OpenGLSnakeGame
+
+# Editor-specific files (VSCode, etc.)
+.vscode/
+*.user

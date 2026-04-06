@@ -17,7 +17,7 @@ export CXX=clang++
 # 1. Install dependencies using Conan
 # This generates the CMake toolchain file in the build directory.
 echo "--- Installing dependencies with Conan ---"
-conan install . --output-folder=${BUILD_DIR} --build=missing
+conan install . --output-folder=${BUILD_DIR} --build=missing -c tools.system.package_manager:mode=install -c tools.system.package_manager:sudo=True
 
 # Detect the toolchain file path (Conan 2.x layout can vary)
 TOOLCHAIN_FILE="${BUILD_DIR}/generators/conan_toolchain.cmake"

@@ -36,9 +36,6 @@ jobs:
         conan profile detect --force
 
     - name: Build Project
-      env:
-        CONAN_CONF_TOOLS_SYSTEM_PACKAGE_MANAGER_MODE: install
-        CONAN_CONF_TOOLS_SYSTEM_PACKAGE_MANAGER_SUDO: "True"
       run: |
         chmod +x build.sh
         ./build.sh

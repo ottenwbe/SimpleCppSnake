@@ -1,6 +1,7 @@
 # SimpleCppSnake
 
 
+<!-- Note about AI assistance -->
 > **Note:** This project was created with assistance of AI (Gemini Code Assist), with the purpose of testing some capabilites of AI assisted software development.
 
 

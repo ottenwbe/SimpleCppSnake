@@ -1,5 +1,6 @@
 # SimpleCppSnake
 
+[![C++ CI](https://github.com/ottenwbe/SimpleCppSnake/actions/workflows/ci.yml/badge.svg)](https://github.com/ottenwbe/SimpleCppSnake/actions/workflows/ci.yml)
 
 <!-- Note about AI assistance -->
 > **Note:** This project was created with assistance of AI (Gemini Code Assist), with the purpose of testing some capabilites of AI assisted software development.

@@ -35,12 +35,16 @@ struct Character {
     unsigned int Advance; 
 };
 
-std::map<char, Character> Characters;
-unsigned int textVAO, textVBO;
-unsigned int textShaderProgram;
+struct Renderer {
+    std::map<char, Character> Characters;
+    unsigned int textVAO, textVBO;
+    unsigned int shaderProgram, borderShaderProgram, textShaderProgram;
+    unsigned int VAO, VBO, instanceVBO, borderVAO, borderVBO, pauseVAO, pauseVBO;
+    unsigned int gridCountLoc, colorLoc, isAppleLoc, isBananaLoc, isGoldenAppleLoc, isSnakeLoc, snakeDirectionLoc, borderColorLoc;
+};
 
 // Function Prototypes
-void RenderText(unsigned int shader, std::string text, float x, float y, float scale, glm::vec3 color);
+void RenderText(const Renderer& renderer, std::string text, float x, float y, float scale, glm::vec3 color);
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void handleInput(GLFWwindow* window, GameState& state);
 unsigned int createShaderProgram(const char* vertexSource, const char* fragmentSource);
@@ -305,14 +309,16 @@ int main()
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
+    Renderer renderer;
+
     // Main Game Shader
-    unsigned int shaderProgram = createShaderProgram(vertexShaderSource, fragmentShaderSource);
+    renderer.shaderProgram = createShaderProgram(vertexShaderSource, fragmentShaderSource);
 
     // Border Shader Program
-    unsigned int borderShaderProgram = createShaderProgram(borderVertexShaderSource, borderFragmentShaderSource);
+    renderer.borderShaderProgram = createShaderProgram(borderVertexShaderSource, borderFragmentShaderSource);
 
     // Text Shader Program
-    textShaderProgram = createShaderProgram(textVertexShaderSource, textFragmentShaderSource);
+    renderer.textShaderProgram = createShaderProgram(textVertexShaderSource, textFragmentShaderSource);
 
     // Freetype initialization
     FT_Library ft;
@@ -354,19 +360,19 @@ int main()
             glm::ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top),
             static_cast<unsigned int>(face->glyph->advance.x)
         };
-        Characters.insert(std::pair<char, Character>(c, character));
+        renderer.Characters.insert(std::pair<char, Character>(c, character));
     }
     FT_Done_Face(face);
     FT_Done_FreeType(ft);
 
-    unsigned int gridCountLoc = glGetUniformLocation(shaderProgram, "gridCount");
-    unsigned int colorLoc = glGetUniformLocation(shaderProgram, "objectColor");
-    unsigned int isAppleLoc = glGetUniformLocation(shaderProgram, "isApple");
-    unsigned int isBananaLoc = glGetUniformLocation(shaderProgram, "isBanana");
-    unsigned int isGoldenAppleLoc = glGetUniformLocation(shaderProgram, "isGoldenApple");
-    unsigned int isSnakeLoc = glGetUniformLocation(shaderProgram, "isSnake");
-    unsigned int snakeDirectionLoc = glGetUniformLocation(shaderProgram, "snakeDirection");
-    unsigned int borderColorLoc = glGetUniformLocation(borderShaderProgram, "borderColor");
+    renderer.gridCountLoc = glGetUniformLocation(renderer.shaderProgram, "gridCount");
+    renderer.colorLoc = glGetUniformLocation(renderer.shaderProgram, "objectColor");
+    renderer.isAppleLoc = glGetUniformLocation(renderer.shaderProgram, "isApple");
+    renderer.isBananaLoc = glGetUniformLocation(renderer.shaderProgram, "isBanana");
+    renderer.isGoldenAppleLoc = glGetUniformLocation(renderer.shaderProgram, "isGoldenApple");
+    renderer.isSnakeLoc = glGetUniformLocation(renderer.shaderProgram, "isSnake");
+    renderer.snakeDirectionLoc = glGetUniformLocation(renderer.shaderProgram, "snakeDirection");
+    renderer.borderColorLoc = glGetUniformLocation(renderer.borderShaderProgram, "borderColor");
 
     // A single square that we will reuse
     float vertices[] = {
@@ -379,19 +385,18 @@ int main()
         1.0f, 0.0f
     };
 
-    unsigned int VBO, VAO, instanceVBO;
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glBindVertexArray(VAO);
+    glGenVertexArrays(1, &renderer.VAO);
+    glGenBuffers(1, &renderer.VBO);
+    glBindVertexArray(renderer.VAO);
 
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, renderer.VBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
     // Instanced VBO Setup
-    glGenBuffers(1, &instanceVBO);
-    glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+    glGenBuffers(1, &renderer.instanceVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, renderer.instanceVBO);
     // Use a max size for the buffer since grid size is dynamic
     const int MAX_GRID_CELLS = GRID_WIDTH * GRID_HEIGHT;
     glBufferData(GL_ARRAY_BUFFER, MAX_GRID_CELLS * sizeof(glm::vec2), NULL, GL_STREAM_DRAW);
@@ -409,21 +414,20 @@ int main()
          1.0f,  1.0f,
         -1.0f,  1.0f
     };
-    unsigned int borderVBO, borderVAO;
-    glGenVertexArrays(1, &borderVAO);
-    glGenBuffers(1, &borderVBO);
-    glBindVertexArray(borderVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, borderVBO);
+    glGenVertexArrays(1, &renderer.borderVAO);
+    glGenBuffers(1, &renderer.borderVBO);
+    glBindVertexArray(renderer.borderVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, renderer.borderVBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(borderVertices), borderVertices, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
     glBindVertexArray(0);
 
     // Text VAO/VBO
-    glGenVertexArrays(1, &textVAO);
-    glGenBuffers(1, &textVBO);
-    glBindVertexArray(textVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, textVBO);
+    glGenVertexArrays(1, &renderer.textVAO);
+    glGenBuffers(1, &renderer.textVBO);
+    glBindVertexArray(renderer.textVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, renderer.textVBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 6 * 4, NULL, GL_DYNAMIC_DRAW);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
@@ -437,11 +441,10 @@ int main()
          0.05f,  0.3f,  0.05f, -0.3f,  0.15f, -0.3f,
          0.05f,  0.3f,  0.15f, -0.3f,  0.15f,  0.3f
     };
-    unsigned int pauseVAO, pauseVBO;
-    glGenVertexArrays(1, &pauseVAO);
-    glGenBuffers(1, &pauseVBO);
-    glBindVertexArray(pauseVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, pauseVBO);
+    glGenVertexArrays(1, &renderer.pauseVAO);
+    glGenBuffers(1, &renderer.pauseVBO);
+    glBindVertexArray(renderer.pauseVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, renderer.pauseVBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(pauseVertices), pauseVertices, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
@@ -455,15 +458,15 @@ int main()
     
     // Setup text projection once
     glm::mat4 projection = glm::ortho(0.0f, static_cast<float>(SCR_WIDTH), 0.0f, static_cast<float>(SCR_HEIGHT));
-    glUseProgram(textShaderProgram);
-    glUniformMatrix4fv(glGetUniformLocation(textShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+    glUseProgram(renderer.textShaderProgram);
+    glUniformMatrix4fv(glGetUniformLocation(renderer.textShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 
     auto updateUIProjection = [&](int width, int height) {
         SCR_WIDTH = width;
         SCR_HEIGHT = height;
         projection = glm::ortho(0.0f, static_cast<float>(width), 0.0f, static_cast<float>(height));
-        glUseProgram(textShaderProgram);
-        glUniformMatrix4fv(glGetUniformLocation(textShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+        glUseProgram(renderer.textShaderProgram);
+        glUniformMatrix4fv(glGetUniformLocation(renderer.textShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
     };
 
     while (!glfwWindowShouldClose(window))
@@ -509,67 +512,67 @@ int main()
             updateUIProjection(winW, winH);
 
         if (state.inMenu) {
-            RenderText(textShaderProgram, "SNAKE GAME", SCR_WIDTH / 2.0f - 150.0f, SCR_HEIGHT / 2.0f + 200.0f, 1.2f, glm::vec3(0.0, 0.8, 0.2));
+            RenderText(renderer, "SNAKE GAME", SCR_WIDTH / 2.0f - 150.0f, SCR_HEIGHT / 2.0f + 200.0f, 1.2f, glm::vec3(0.0, 0.8, 0.2));
 
-            RenderText(textShaderProgram, "Top 5 High Scores:", SCR_WIDTH / 2.0f - 150.0f, SCR_HEIGHT / 2.0f + 140.0f, 0.6f, glm::vec3(1.0, 0.9, 0.3));
+            RenderText(renderer, "Top 5 High Scores:", SCR_WIDTH / 2.0f - 150.0f, SCR_HEIGHT / 2.0f + 140.0f, 0.6f, glm::vec3(1.0, 0.9, 0.3));
             for (size_t i = 0; i < state.highScores.size(); ++i) {
                 std::string hs = std::to_string(i + 1) + ". " + std::to_string(state.highScores[i].score) + 
                                  (state.highScores[i].aiUsed ? " (AI)" : " (No AI)") +
                                  (state.highScores[i].obstaclesEnabled ? " (Obs)" : " (No Obs)");
-                RenderText(textShaderProgram, hs, SCR_WIDTH / 2.0f - 100.0f, SCR_HEIGHT / 2.0f + 110.0f - i * 25.0f, 0.5f, glm::vec3(1.0, 0.9, 0.3));
+                RenderText(renderer, hs, SCR_WIDTH / 2.0f - 100.0f, SCR_HEIGHT / 2.0f + 110.0f - i * 25.0f, 0.5f, glm::vec3(1.0, 0.9, 0.3));
             }
 
             // Interactive Menu Selection
             glm::vec3 startColor = (state.menuSelection == 0) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-            RenderText(textShaderProgram, "Start Game", SCR_WIDTH / 2.0f - 100.0f, SCR_HEIGHT / 2.0f - 40.0f, 0.8f, startColor);
+            RenderText(renderer, "Start Game", SCR_WIDTH / 2.0f - 100.0f, SCR_HEIGHT / 2.0f - 40.0f, 0.8f, startColor);
 
             glm::vec3 obsColor = (state.menuSelection == 1) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
             std::string obsText = "Obstacle Spawning: " + std::string(state.obstaclesEnabled ? "ON" : "OFF");
-            RenderText(textShaderProgram, obsText, SCR_WIDTH / 2.0f - 180.0f, SCR_HEIGHT / 2.0f - 80.0f, 0.6f, obsColor);
+            RenderText(renderer, obsText, SCR_WIDTH / 2.0f - 180.0f, SCR_HEIGHT / 2.0f - 80.0f, 0.6f, obsColor);
 
-            RenderText(textShaderProgram, "Controls:", SCR_WIDTH / 2.0f - 50.0f, SCR_HEIGHT / 2.0f - 130.0f, 0.6f, glm::vec3(1.0, 0.8, 0.2));
-            RenderText(textShaderProgram, "[Arrows] Move / Change Selection", SCR_WIDTH / 2.0f - 230.0f, SCR_HEIGHT / 2.0f - 160.0f, 0.5f, glm::vec3(0.7));
-            RenderText(textShaderProgram, "[Space/Enter] Select / Pause", SCR_WIDTH / 2.0f - 190.0f, SCR_HEIGHT / 2.0f - 185.0f, 0.5f, glm::vec3(0.7));
-            RenderText(textShaderProgram, "[Esc] Back / Quit", SCR_WIDTH / 2.0f - 120.0f, SCR_HEIGHT / 2.0f - 210.0f, 0.5f, glm::vec3(0.7));
-            RenderText(textShaderProgram, "[F11] Fullscreen", SCR_WIDTH / 2.0f - 110.0f, SCR_HEIGHT / 2.0f - 235.0f, 0.5f, glm::vec3(0.7));
-            RenderText(textShaderProgram, "[I] AI Auto-Pilot", SCR_WIDTH / 2.0f - 105.0f, SCR_HEIGHT / 2.0f - 260.0f, 0.5f, glm::vec3(0.7));
+            RenderText(renderer, "Controls:", SCR_WIDTH / 2.0f - 50.0f, SCR_HEIGHT / 2.0f - 130.0f, 0.6f, glm::vec3(1.0, 0.8, 0.2));
+            RenderText(renderer, "[Arrows] Move / Change Selection", SCR_WIDTH / 2.0f - 230.0f, SCR_HEIGHT / 2.0f - 160.0f, 0.5f, glm::vec3(0.7));
+            RenderText(renderer, "[Space/Enter] Select / Pause", SCR_WIDTH / 2.0f - 190.0f, SCR_HEIGHT / 2.0f - 185.0f, 0.5f, glm::vec3(0.7));
+            RenderText(renderer, "[Esc] Back / Quit", SCR_WIDTH / 2.0f - 120.0f, SCR_HEIGHT / 2.0f - 210.0f, 0.5f, glm::vec3(0.7));
+            RenderText(renderer, "[F11] Fullscreen", SCR_WIDTH / 2.0f - 110.0f, SCR_HEIGHT / 2.0f - 235.0f, 0.5f, glm::vec3(0.7));
+            RenderText(renderer, "[I] AI Auto-Pilot", SCR_WIDTH / 2.0f - 105.0f, SCR_HEIGHT / 2.0f - 260.0f, 0.5f, glm::vec3(0.7));
         } else {
             // 2. Set viewport to the Game Grid area
             glViewport(vpX, vpY, vpW, vpH);
 
             // Draw Border
-            glUseProgram(borderShaderProgram);
-            glBindVertexArray(borderVAO);
-            glUniform3f(borderColorLoc, 0.5f, 0.5f, 0.5f);
+            glUseProgram(renderer.borderShaderProgram);
+            glBindVertexArray(renderer.borderVAO);
+            glUniform3f(renderer.borderColorLoc, 0.5f, 0.5f, 0.5f);
             glLineWidth(5.0f);
             glDrawArrays(GL_LINE_LOOP, 0, 4);
 
-            glUseProgram(shaderProgram);
-            glBindVertexArray(VAO);
+            glUseProgram(renderer.shaderProgram);
+            glBindVertexArray(renderer.VAO);
 
-            glUniform2f(gridCountLoc, (float)GRID_WIDTH, (float)GRID_HEIGHT);
+            glUniform2f(renderer.gridCountLoc, (float)GRID_WIDTH, (float)GRID_HEIGHT);
 
             // Draw Snake
             glm::vec3 color = state.gameOver ? glm::vec3(0.5f, 0.0f, 0.0f) : glm::vec3(0.0f, 0.8f, 0.2f);
-            glUniform3fv(colorLoc, 1, glm::value_ptr(color));
-            glUniform1i(isAppleLoc, 0);
-            glUniform1i(isBananaLoc, 0);
-            glUniform1i(isGoldenAppleLoc, 0);
-            glUniform1i(isSnakeLoc, 1);
-            glUniform1i(snakeDirectionLoc, static_cast<int>(state.snakeDirection));
+            glUniform3fv(renderer.colorLoc, 1, glm::value_ptr(color));
+            glUniform1i(renderer.isAppleLoc, 0);
+            glUniform1i(renderer.isBananaLoc, 0);
+            glUniform1i(renderer.isGoldenAppleLoc, 0);
+            glUniform1i(renderer.isSnakeLoc, 1);
+            glUniform1i(renderer.snakeDirectionLoc, static_cast<int>(state.snakeDirection));
             
             std::vector<glm::vec2> snakeData(state.snake.begin(), state.snake.end());
-            glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+            glBindBuffer(GL_ARRAY_BUFFER, renderer.instanceVBO);
             glBufferSubData(GL_ARRAY_BUFFER, 0, snakeData.size() * sizeof(glm::vec2), snakeData.data());
             glDrawArraysInstanced(GL_TRIANGLES, 0, 6, static_cast<unsigned int>(snakeData.size()));
 
             // Draw Food
             color = glm::vec3(1.0f, 0.2f, 0.2f);
-            glUniform3fv(colorLoc, 1, glm::value_ptr(color));
-            glUniform1i(isAppleLoc, 1);
-            glUniform1i(isBananaLoc, 0);
-            glUniform1i(isGoldenAppleLoc, 0);
-            glUniform1i(isSnakeLoc, 0);
+            glUniform3fv(renderer.colorLoc, 1, glm::value_ptr(color));
+            glUniform1i(renderer.isAppleLoc, 1);
+            glUniform1i(renderer.isBananaLoc, 0);
+            glUniform1i(renderer.isGoldenAppleLoc, 0);
+            glUniform1i(renderer.isSnakeLoc, 0);
 
             glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), &state.food);
             glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1);
@@ -577,11 +580,11 @@ int main()
             // Draw Obstacles
             if (!state.obstacles.empty()) {
                 color = glm::vec3(0.5f, 0.5f, 0.5f); // Grey obstacles
-                glUniform3fv(colorLoc, 1, glm::value_ptr(color));
-                glUniform1i(isAppleLoc, 0);
-                glUniform1i(isBananaLoc, 0);
-                glUniform1i(isGoldenAppleLoc, 0);
-                glUniform1i(isSnakeLoc, 0);
+                glUniform3fv(renderer.colorLoc, 1, glm::value_ptr(color));
+                glUniform1i(renderer.isAppleLoc, 0);
+                glUniform1i(renderer.isBananaLoc, 0);
+                glUniform1i(renderer.isGoldenAppleLoc, 0);
+                glUniform1i(renderer.isSnakeLoc, 0);
                 glBufferSubData(GL_ARRAY_BUFFER, 0, state.obstacles.size() * sizeof(glm::vec2), state.obstacles.data());
                 glDrawArraysInstanced(GL_TRIANGLES, 0, 6, static_cast<unsigned int>(state.obstacles.size()));
             }
@@ -589,11 +592,11 @@ int main()
             // Draw Banana
             if (state.banana.active) {
                 color = glm::vec3(1.0f, 0.9f, 0.1f); // Bright yellow for visibility
-                glUniform3fv(colorLoc, 1, glm::value_ptr(color));
-                glUniform1i(isAppleLoc, 0);
-                glUniform1i(isBananaLoc, 1);
-                glUniform1i(isGoldenAppleLoc, 0);
-                glUniform1i(isSnakeLoc, 0);
+                glUniform3fv(renderer.colorLoc, 1, glm::value_ptr(color));
+                glUniform1i(renderer.isAppleLoc, 0);
+                glUniform1i(renderer.isBananaLoc, 1);
+                glUniform1i(renderer.isGoldenAppleLoc, 0);
+                glUniform1i(renderer.isSnakeLoc, 0);
 
                 glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), &state.banana.pos);
                 glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1);
@@ -602,11 +605,11 @@ int main()
             // Draw Golden Apple
             if (state.goldenApple.active) {
                 color = glm::vec3(1.0f, 0.85f, 0.0f); // Gold
-                glUniform3fv(colorLoc, 1, glm::value_ptr(color));
-                glUniform1i(isAppleLoc, 0);
-                glUniform1i(isBananaLoc, 0);
-                glUniform1i(isGoldenAppleLoc, 1);
-                glUniform1i(isSnakeLoc, 0);
+                glUniform3fv(renderer.colorLoc, 1, glm::value_ptr(color));
+                glUniform1i(renderer.isAppleLoc, 0);
+                glUniform1i(renderer.isBananaLoc, 0);
+                glUniform1i(renderer.isGoldenAppleLoc, 1);
+                glUniform1i(renderer.isSnakeLoc, 0);
 
                 glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), &state.goldenApple.pos);
                 glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1);
@@ -617,7 +620,7 @@ int main()
 
             // Draw Score
             std::string scoreStr = "Points: " + std::to_string(state.score);
-            RenderText(textShaderProgram, scoreStr, 20.0f, SCR_HEIGHT - 40.0f, 0.5f, glm::vec3(1.0f, 1.0f, 1.0f));
+            RenderText(renderer, scoreStr, 20.0f, SCR_HEIGHT - 40.0f, 0.5f, glm::vec3(1.0f, 1.0f, 1.0f));
 
             // Draw Banana Timer
             if (state.banana.active && !state.gameOver && !state.paused) {
@@ -629,7 +632,7 @@ int main()
                     // Position text above the banana
                     float tx = vpX + state.banana.pos.x * cellW + cellW * 0.2f;
                     float ty = vpY + (state.banana.pos.y + 0.8f) * cellH;
-                    RenderText(textShaderProgram, timeStr, tx, ty, 0.4f, glm::vec3(1.0f, 1.0f, 0.0f));
+                    RenderText(renderer, timeStr, tx, ty, 0.4f, glm::vec3(1.0f, 1.0f, 0.0f));
                 }
             }
 
@@ -642,37 +645,37 @@ int main()
                     float cellH = (float)vpH / GRID_HEIGHT;
                     float tx = vpX + state.goldenApple.pos.x * cellW + cellW * 0.2f;
                     float ty = vpY + (state.goldenApple.pos.y + 0.8f) * cellH;
-                    RenderText(textShaderProgram, timeStr, tx, ty, 0.4f, glm::vec3(1.0f, 0.8f, 0.0f));
+                    RenderText(renderer, timeStr, tx, ty, 0.4f, glm::vec3(1.0f, 0.8f, 0.0f));
                 }
             }
 
             if (state.aiEnabled && !state.gameOver) {
-                RenderText(textShaderProgram, "AI AUTO-PILOT ENABLED [I]", SCR_WIDTH - 300.0f, SCR_HEIGHT - 40.0f, 0.4f, glm::vec3(0.0f, 1.0f, 1.0f));
+                RenderText(renderer, "AI AUTO-PILOT ENABLED [I]", SCR_WIDTH - 300.0f, SCR_HEIGHT - 40.0f, 0.4f, glm::vec3(0.0f, 1.0f, 1.0f));
             }
 
             if (state.paused) {
-                glUseProgram(borderShaderProgram);
-                glBindVertexArray(pauseVAO);
-                glUniform3f(borderColorLoc, 1.0f, 1.0f, 1.0f);
+                glUseProgram(renderer.borderShaderProgram);
+                glBindVertexArray(renderer.pauseVAO);
+                glUniform3f(renderer.borderColorLoc, 1.0f, 1.0f, 1.0f);
                 glDrawArrays(GL_TRIANGLES, 0, 12);
                 
-                RenderText(textShaderProgram, "PAUSED", SCR_WIDTH / 2.0f - 80.0f, SCR_HEIGHT / 2.0f + 120.0f, 1.0f, glm::vec3(1.0, 1.0, 1.0));
-                RenderText(textShaderProgram, "Press SPACE to Resume", SCR_WIDTH / 2.0f - 200.0f, SCR_HEIGHT / 2.0f - 150.0f, 0.6f, glm::vec3(0.8, 0.8, 0.8));
+                RenderText(renderer, "PAUSED", SCR_WIDTH / 2.0f - 80.0f, SCR_HEIGHT / 2.0f + 120.0f, 1.0f, glm::vec3(1.0, 1.0, 1.0));
+                RenderText(renderer, "Press SPACE to Resume", SCR_WIDTH / 2.0f - 200.0f, SCR_HEIGHT / 2.0f - 150.0f, 0.6f, glm::vec3(0.8, 0.8, 0.8));
             }
         }
 
         if (state.gameOver) {
-            RenderText(textShaderProgram, "GAME OVER", SCR_WIDTH / 2.0f - 150.0f, SCR_HEIGHT / 2.0f + 100.0f, 1.0f, glm::vec3(1.0, 0.2, 0.2));
+            RenderText(renderer, "GAME OVER", SCR_WIDTH / 2.0f - 150.0f, SCR_HEIGHT / 2.0f + 100.0f, 1.0f, glm::vec3(1.0, 0.2, 0.2));
             
             if (state.isNewTopScore) {
-                RenderText(textShaderProgram, "NEW TOP 5 SCORE!", SCR_WIDTH / 2.0f - 180.0f, SCR_HEIGHT / 2.0f + 50.0f, 0.7f, glm::vec3(1.0, 0.8, 0.0));
+                RenderText(renderer, "NEW TOP 5 SCORE!", SCR_WIDTH / 2.0f - 180.0f, SCR_HEIGHT / 2.0f + 50.0f, 0.7f, glm::vec3(1.0, 0.8, 0.0));
             }
 
             std::string scoreText = "SCORE: " + std::to_string(state.score);
-            RenderText(textShaderProgram, scoreText, SCR_WIDTH / 2.0f - 110.0f, SCR_HEIGHT / 2.0f, 0.8f, glm::vec3(1.0, 1.0, 1.0));
+            RenderText(renderer, scoreText, SCR_WIDTH / 2.0f - 110.0f, SCR_HEIGHT / 2.0f, 0.8f, glm::vec3(1.0, 1.0, 1.0));
 
-            RenderText(textShaderProgram, "Press Space to Restart", SCR_WIDTH / 2.0f - 200.0f, SCR_HEIGHT / 2.0f - 60.0f, 0.7f, glm::vec3(0.8, 0.8, 0.8));
-            RenderText(textShaderProgram, "Press ESC to Menu", SCR_WIDTH / 2.0f - 160.0f, SCR_HEIGHT / 2.0f - 100.0f, 0.6f, glm::vec3(0.6, 0.6, 0.6));
+            RenderText(renderer, "Press Space to Restart", SCR_WIDTH / 2.0f - 200.0f, SCR_HEIGHT / 2.0f - 60.0f, 0.7f, glm::vec3(0.8, 0.8, 0.8));
+            RenderText(renderer, "Press ESC to Menu", SCR_WIDTH / 2.0f - 160.0f, SCR_HEIGHT / 2.0f - 100.0f, 0.6f, glm::vec3(0.6, 0.6, 0.6));
         }
 
 
@@ -682,24 +685,24 @@ int main()
     spdlog::info("Shutting down...");
 
     // Cleanup Text Rendering resources
-    glDeleteVertexArrays(1, &textVAO);
-    glDeleteBuffers(1, &textVBO);
-    glDeleteProgram(textShaderProgram);
+    glDeleteVertexArrays(1, &renderer.textVAO);
+    glDeleteBuffers(1, &renderer.textVBO);
+    glDeleteProgram(renderer.textShaderProgram);
 
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
-    glDeleteBuffers(1, &instanceVBO);
-    glDeleteProgram(shaderProgram);
+    glDeleteVertexArrays(1, &renderer.VAO);
+    glDeleteBuffers(1, &renderer.VBO);
+    glDeleteBuffers(1, &renderer.instanceVBO);
+    glDeleteProgram(renderer.shaderProgram);
 
-    glDeleteVertexArrays(1, &borderVAO);
-    glDeleteBuffers(1, &borderVBO);
-    glDeleteProgram(borderShaderProgram);
+    glDeleteVertexArrays(1, &renderer.borderVAO);
+    glDeleteBuffers(1, &renderer.borderVBO);
+    glDeleteProgram(renderer.borderShaderProgram);
 
-    glDeleteVertexArrays(1, &pauseVAO);
-    glDeleteBuffers(1, &pauseVBO);
+    glDeleteVertexArrays(1, &renderer.pauseVAO);
+    glDeleteBuffers(1, &renderer.pauseVBO);
 
     // Cleanup textures
-    for (auto const& [key, val] : Characters) {
+    for (auto const& [key, val] : renderer.Characters) {
         glDeleteTextures(1, &val.TextureID);
     }
 
@@ -813,20 +816,20 @@ void framebuffer_size_callback(GLFWwindow* /*window*/, int width, int height)
     glViewport(0, 0, width, height);
 }
 
-void RenderText(unsigned int shader, std::string text, float x, float y, float scale, glm::vec3 color)
+void RenderText(const Renderer& renderer, std::string text, float x, float y, float scale, glm::vec3 color)
 {
     // Activate corresponding render state	
-    glUseProgram(shader);
-    glUniform3f(glGetUniformLocation(shader, "textColor"), color.x, color.y, color.z);
+    glUseProgram(renderer.textShaderProgram);
+    glUniform3f(glGetUniformLocation(renderer.textShaderProgram, "textColor"), color.x, color.y, color.z);
     glActiveTexture(GL_TEXTURE0);
-    glBindVertexArray(textVAO);
+    glBindVertexArray(renderer.textVAO);
 
     // Iterate through all characters
     std::string::const_iterator c;
     for (c = text.begin(); c != text.end(); c++)
     {
-        auto it = Characters.find(*c);
-        if (it == Characters.end()) continue; // Skip unknown characters
+        auto it = renderer.Characters.find(*c);
+        if (it == renderer.Characters.end()) continue; // Skip unknown characters
         
         Character ch = it->second;
 
@@ -848,7 +851,7 @@ void RenderText(unsigned int shader, std::string text, float x, float y, float s
         // Render glyph texture over quad
         glBindTexture(GL_TEXTURE_2D, ch.TextureID);
         // Update content of VBO memory
-        glBindBuffer(GL_ARRAY_BUFFER, textVBO);
+        glBindBuffer(GL_ARRAY_BUFFER, renderer.textVBO);
         glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         // Render quad

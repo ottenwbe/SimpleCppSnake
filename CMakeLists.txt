@@ -45,7 +45,12 @@ find_file(SYSTEM_FONT_PATH
 )
 
 # --- Executable ---
-add_executable(${PROJECT_NAME} main.cpp)
+add_executable(${PROJECT_NAME} 
+    src/main.cpp 
+    src/game_logic.cpp
+)
+
+target_include_directories(${PROJECT_NAME} PRIVATE include)
 
 # --- Enable Testing ---
 enable_testing()
@@ -69,10 +74,12 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 )
 
 # --- Unit Tests ---
-add_executable(unit_tests test_main.cpp)
+add_executable(unit_tests tests/test_main.cpp src/game_logic.cpp)
+target_include_directories(unit_tests PRIVATE include)
+
 target_link_libraries(unit_tests PRIVATE 
     Catch2::Catch2WithMain
-    glm::glm
+    glm::glm 
     spdlog::spdlog
 )
 

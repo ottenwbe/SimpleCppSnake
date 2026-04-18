@@ -8,7 +8,7 @@ BUILD_DIR="build"
 
 # Clean the build directory to resolve CMake cache path mismatches
 echo "--- Cleaning build directory ---"
-rm -rf ${BUILD_DIR}
+rm -rf ${BUILD_DIR} bin/
 
 # Force Clang as the compiler
 export CC=clang

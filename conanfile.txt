@@ -4,6 +4,7 @@ glm/1.0.1
 freetype/2.14.1
 spdlog/1.17.0
 opengl/system
+catch2/3.7.1
 
 [generators]
 CMakeDeps

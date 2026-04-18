@@ -21,6 +21,9 @@ find_package(Freetype REQUIRED)
 # --- spdlog ---
 find_package(spdlog REQUIRED)
 
+# --- Catch2 ---
+find_package(Catch2 REQUIRED)
+
 # --- Find a system font ---
 find_file(SYSTEM_FONT_PATH
     NAMES
@@ -44,6 +47,9 @@ find_file(SYSTEM_FONT_PATH
 # --- Executable ---
 add_executable(${PROJECT_NAME} main.cpp)
 
+# --- Enable Testing ---
+enable_testing()
+
 # --- Compiler Options ---
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic)
@@ -62,9 +68,19 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     spdlog::spdlog
 )
 
+# --- Unit Tests ---
+add_executable(unit_tests test_main.cpp)
+target_link_libraries(unit_tests PRIVATE 
+    Catch2::Catch2WithMain
+    glm::glm
+    spdlog::spdlog
+)
+
 if(NOT SYSTEM_FONT_PATH)
     message(FATAL_ERROR "Could not find a suitable TTF font. Please install a common font like 'dejavu-sans-fonts' or 'liberation-fonts'.")
 else()
     message(STATUS "Using system font: ${SYSTEM_FONT_PATH}")
     target_compile_definitions(${PROJECT_NAME} PRIVATE FONT_PATH="${SYSTEM_FONT_PATH}")
 endif()
+
+add_test(NAME GameLogicTests COMMAND unit_tests)

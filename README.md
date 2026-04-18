@@ -24,6 +24,7 @@ This project is built using several excellent open-source libraries managed via 
 *   **[GLM](https://github.com/g-truc/glm)** (MIT License): Mathematics library for graphics.
 *   **[FreeType](https://www.freetype.org)** (FTL License): Font rendering. *Portions of this software are copyright © 2026 The FreeType Project. All rights reserved.*
 *   **[spdlog](https://github.com/gabime/spdlog)** (MIT License): Thread-safe logging.
+*   **[Catch2](https://github.com/catchorg/Catch2)** (Boost Software License 1.0): C++ Unit Testing Framework.
 *   **OpenGL**: Hardware-accelerated rendering.
 *   **Fonts**: System fonts (DejaVu/OpenSans) are subject to their respective licenses.
 

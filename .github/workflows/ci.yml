@@ -39,3 +39,7 @@ jobs:
       run: |
         chmod +x build.sh
         ./build.sh
+
+    - name: Run Unit Tests
+      run: |
+        ctest --test-dir build --output-on-failure

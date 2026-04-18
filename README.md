@@ -1,6 +1,8 @@
 # SimpleCppSnake
 
+[![C++ CI](https://github.com/ottenwbe/SimpleCppSnake/actions/workflows/ci.yml/badge.svg)](https://github.com/ottenwbe/SimpleCppSnake/actions/workflows/ci.yml)
 
+<!-- Note about AI assistance -->
 > **Note:** This project was created with assistance of AI (Gemini Code Assist), with the purpose of testing some capabilites of AI assisted software development.
 
 
@@ -22,6 +24,7 @@ This project is built using several excellent open-source libraries managed via 
 *   **[GLM](https://github.com/g-truc/glm)** (MIT License): Mathematics library for graphics.
 *   **[FreeType](https://www.freetype.org)** (FTL License): Font rendering. *Portions of this software are copyright © 2026 The FreeType Project. All rights reserved.*
 *   **[spdlog](https://github.com/gabime/spdlog)** (MIT License): Thread-safe logging.
+*   **[Catch2](https://github.com/catchorg/Catch2)** (Boost Software License 1.0): C++ Unit Testing Framework.
 *   **OpenGL**: Hardware-accelerated rendering.
 *   **Fonts**: System fonts (DejaVu/OpenSans) are subject to their respective licenses.
 
@@ -69,4 +72,4 @@ After building, the executable will be located in the `build` directory.
 
 ## License and Attributions
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

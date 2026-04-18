@@ -14,8 +14,9 @@ compile_commands.json
 # SBOM files
 *.json
 
-# Executable file
+# Game files
 OpenGLSnakeGame
+highscore.txt
 
 # Editor-specific files (VSCode, etc.)
 .vscode/

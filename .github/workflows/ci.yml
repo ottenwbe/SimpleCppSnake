@@ -1,0 +1,45 @@
+name: C++ CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install System Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libgl1-mesa-dev \
+          libx11-dev \
+          libxcursor-dev \
+          libxrandr-dev \
+          libxinerama-dev \
+          libxi-dev \
+          libxkbcommon-dev \
+          clang
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
+    - name: Install and Configure Conan
+      run: |
+        pip install conan
+        conan profile detect --force
+
+    - name: Build Project
+      run: |
+        chmod +x build.sh
+        ./build.sh
+
+    - name: Run Unit Tests
+      run: |
+        ctest --test-dir build --output-on-failure

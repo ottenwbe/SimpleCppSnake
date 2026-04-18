@@ -35,6 +35,18 @@ struct Character {
     unsigned int Advance;   // Horizontal offset to advance to next glyph
 };
 
+struct Banana {
+    glm::vec2 pos;
+    float spawnTime;
+    bool active = false;
+};
+
+struct GoldenApple {
+    glm::vec2 pos;
+    float spawnTime;
+    bool active = false;
+};
+
 std::map<char, Character> Characters;
 unsigned int textVAO, textVBO;
 unsigned int textShaderProgram;
@@ -43,10 +55,13 @@ unsigned int textShaderProgram;
 void RenderText(unsigned int shader, std::string text, float x, float y, float scale, glm::vec3 color);
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window, Direction& dir, bool& shouldReset, bool gameOver, bool& paused, bool& inMenu, bool& aiEnabled);
-void generateNewFood(glm::vec2& food, const std::deque<glm::vec2>& snake, const std::vector<glm::vec2>& obstacles);
-void generateObstacle(std::vector<glm::vec2>& obstacles, const std::deque<glm::vec2>& snake, const glm::vec2& food);
-void resetGame(std::deque<glm::vec2>& snake, Direction& dir, glm::vec2& food, bool& gameOver, int& score, std::vector<glm::vec2>& obstacles, float& timeBetweenUpdates);
+glm::vec2 getRandomEmptyPosition(const std::deque<glm::vec2>& snake, const std::vector<glm::vec2>& obstacles, const std::vector<glm::vec2>& otherItems);
+void generateNewFood(glm::vec2& food, const std::deque<glm::vec2>& snake, const std::vector<glm::vec2>& obstacles, const Banana& b, const GoldenApple& g);
+void generateObstacle(std::vector<glm::vec2>& obstacles, const std::deque<glm::vec2>& snake, const glm::vec2& food, const Banana& b, const GoldenApple& g);
+void resetGame(std::deque<glm::vec2>& snake, Direction& dir, glm::vec2& food, bool& gameOver, int& score, std::vector<glm::vec2>& obstacles, float& timeBetweenUpdates, Banana& banana, float& nextBananaSpawnTime, GoldenApple& goldenApple);
 unsigned int createShaderProgram(const char* vertexSource, const char* fragmentSource);
+void generateBanana(Banana& banana, const std::deque<glm::vec2>& snake, const glm::vec2& food, const std::vector<glm::vec2>& obstacles, const GoldenApple& g);
+void generateGoldenApple(GoldenApple& goldenApple, const std::deque<glm::vec2>& snake, const glm::vec2& food, const std::vector<glm::vec2>& obstacles, const Banana& banana);
 Direction getAIDirection(const std::deque<glm::vec2>& snake, glm::vec2 food, const std::vector<glm::vec2>& obstacles, Direction currentDir);
 
 
@@ -76,6 +91,8 @@ const char *fragmentShaderSource = R"glsl(
     flat in int InstanceID;
     uniform vec3 objectColor;
     uniform bool isApple;
+    uniform bool isBanana;
+    uniform bool isGoldenApple;
     uniform bool isSnake;
     uniform int snakeDirection;
     void main()
@@ -104,6 +121,42 @@ const char *fragmentShaderSource = R"glsl(
            } else {
                discard;
            }
+       } else if (isBanana) {
+            // Procedural banana shape (curved crescent)
+            vec2 q = p;
+            q.x += 0.45 * (q.y * q.y - 0.7); // Increased curvature
+            float bananaDist = length(vec2(q.x * 2.8, q.y * 0.9)) - 0.75;
+            
+            if (bananaDist < 0.0) {
+                // Better shading for a cylindrical look
+                float rim = 1.0 - max(dot(normalize(vec3(p, 0.5)), vec3(0,0,1)), 0.0);
+                vec3 bananaColor = mix(vec3(1.0, 0.95, 0.2), vec3(0.9, 0.8, 0.1), rim);
+                vec2 lightPos = vec2(-0.3, 0.4);
+                float highlight = pow(max(1.0 - distance(p, lightPos), 0.0), 10.0);
+                vec3 finalColor = bananaColor + vec3(0.5) * highlight;
+                FragColor = vec4(finalColor, 1.0);
+            } else if (abs(p.y) > 0.6 && abs(q.x * 2.8) < 0.25) {
+                // Dark ends of the banana
+                FragColor = vec4(0.2, 0.12, 0.05, 1.0);
+            } else {
+                discard;
+            }
+       } else if (isGoldenApple) {
+            // Procedural golden apple shape
+            float appleDist = length(vec2(p.x, p.y + 0.1 - 0.2 * abs(p.x)));
+            if (appleDist < 0.7) {
+                float rim = 1.0 - max(dot(normalize(vec3(p, 0.5)), vec3(0,0,1)), 0.0);
+                vec3 goldColor = mix(vec3(1.0, 0.85, 0.0), vec3(0.6, 0.4, 0.0), rim);
+                vec2 lightPos = vec2(-0.3, 0.3);
+                float highlight = pow(max(1.0 - distance(p, lightPos), 0.0), 12.0);
+                vec3 finalColor = goldColor + vec3(1.0, 1.0, 0.8) * highlight;
+                FragColor = vec4(finalColor, 1.0);
+            } else if (p.y > 0.4 && p.y < 0.8 && abs(p.x) < 0.05) {
+                // A simple brown stem for the golden apple
+                FragColor = vec4(0.4, 0.2, 0.0, 1.0);
+            } else {
+                discard;
+            }
        } else if (isSnake) {
            // For snake, render as lit spheres
            float dist = length(p);
@@ -329,6 +382,8 @@ int main()
     unsigned int gridCountLoc = glGetUniformLocation(shaderProgram, "gridCount");
     unsigned int colorLoc = glGetUniformLocation(shaderProgram, "objectColor");
     unsigned int isAppleLoc = glGetUniformLocation(shaderProgram, "isApple");
+    unsigned int isBananaLoc = glGetUniformLocation(shaderProgram, "isBanana");
+    unsigned int isGoldenAppleLoc = glGetUniformLocation(shaderProgram, "isGoldenApple");
     unsigned int isSnakeLoc = glGetUniformLocation(shaderProgram, "isSnake");
     unsigned int snakeDirectionLoc = glGetUniformLocation(shaderProgram, "snakeDirection");
     unsigned int borderColorLoc = glGetUniformLocation(borderShaderProgram, "borderColor");
@@ -417,6 +472,9 @@ int main()
     Direction snakeDirection;
     glm::vec2 food;
     std::vector<glm::vec2> obstacles;
+    Banana banana;
+    GoldenApple goldenApple;
+    float nextBananaSpawnTime = 0.0f;
     bool gameOver = false;
     bool shouldReset = false;
     bool paused = false;
@@ -426,7 +484,7 @@ int main()
 
     float lastUpdateTime = 0.0f;
     float timeBetweenUpdates = 0.1f; // 10 moves per second
-    resetGame(snake, snakeDirection, food, gameOver, score, obstacles, timeBetweenUpdates);
+    resetGame(snake, snakeDirection, food, gameOver, score, obstacles, timeBetweenUpdates, banana, nextBananaSpawnTime, goldenApple);
     
     // Setup text projection once
     glm::mat4 projection = glm::ortho(0.0f, static_cast<float>(SCR_WIDTH), 0.0f, static_cast<float>(SCR_HEIGHT));
@@ -447,12 +505,23 @@ int main()
         processInput(window, snakeDirection, shouldReset, gameOver, paused, inMenu, aiEnabled);
 
         if (shouldReset) {
-            resetGame(snake, snakeDirection, food, gameOver, score, obstacles, timeBetweenUpdates);
+            resetGame(snake, snakeDirection, food, gameOver, score, obstacles, timeBetweenUpdates, banana, nextBananaSpawnTime, goldenApple);
             shouldReset = false;
             // Keep AI state across resets if desired, 
             // but usually cleaner to let user toggle it.
             // aiEnabled = false; 
             paused = false;
+        }
+
+        // Handle Banana Expiry and Spawning
+        if (banana.active && (currentTime - banana.spawnTime) > 5.0f) {
+            banana.active = false;
+            nextBananaSpawnTime = currentTime + 10.0f;
+        }
+
+        // Handle Golden Apple Expiry
+        if (goldenApple.active && (currentTime - goldenApple.spawnTime) > 7.0f) {
+            goldenApple.active = false;
         }
 
         // Fixed-timestep update
@@ -498,10 +567,38 @@ int main()
                     score++;
                     // Increase speed and add obstacle
                     timeBetweenUpdates = std::max(0.03f, timeBetweenUpdates * 0.98f);
-                    generateObstacle(obstacles, snake, food);
-                    generateNewFood(food, snake, obstacles);
+                    generateObstacle(obstacles, snake, food, banana, goldenApple);
+                    generateNewFood(food, snake, obstacles, banana, goldenApple);
+                } else if (banana.active && newHead == banana.pos) {
+                    score += 2;
+                    banana.active = false;
+                    nextBananaSpawnTime = currentTime + 10.0f;
+                    // Bananas provide bonus points without increasing snake length
+                    snake.pop_back();
+                } else if (goldenApple.active && newHead == goldenApple.pos) {
+                    score += 5;
+                    goldenApple.active = false;
+                    // Golden apples provide bonus points without increasing snake length
+                    snake.pop_back();
                 } else {
                     snake.pop_back();
+                }
+
+                // Spawn a banana if it is time
+                if (!banana.active && currentTime >= nextBananaSpawnTime && !gameOver && !paused && !inMenu) {
+                    generateBanana(banana, snake, food, obstacles, goldenApple);
+                    banana.spawnTime = currentTime;
+                }
+
+                // Randomly spawn a golden apple if one isn't already active
+                if (!goldenApple.active && !gameOver && !paused && !inMenu) {
+                    static std::default_random_engine goldRand(std::random_device{}());
+                    std::uniform_real_distribution<float> chance(0.0f, 1.0f);
+                    // 0.2% chance per game tick (~once every 50 seconds at 0.1s speed)
+                    if (chance(goldRand) < 0.002f) {
+                        generateGoldenApple(goldenApple, snake, food, obstacles, banana);
+                        goldenApple.spawnTime = currentTime;
+                    }
                 }
             }
         }
@@ -567,6 +664,8 @@ int main()
             glm::vec3 color = gameOver ? glm::vec3(0.5f, 0.0f, 0.0f) : glm::vec3(0.0f, 0.8f, 0.2f);
             glUniform3fv(colorLoc, 1, glm::value_ptr(color));
             glUniform1i(isAppleLoc, 0);
+            glUniform1i(isBananaLoc, 0);
+            glUniform1i(isGoldenAppleLoc, 0);
             glUniform1i(isSnakeLoc, 1);
             glUniform1i(snakeDirectionLoc, static_cast<int>(snakeDirection));
             
@@ -579,6 +678,8 @@ int main()
             color = glm::vec3(1.0f, 0.2f, 0.2f);
             glUniform3fv(colorLoc, 1, glm::value_ptr(color));
             glUniform1i(isAppleLoc, 1);
+            glUniform1i(isBananaLoc, 0);
+            glUniform1i(isGoldenAppleLoc, 0);
             glUniform1i(isSnakeLoc, 0);
 
             glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), &food);
@@ -589,9 +690,37 @@ int main()
                 color = glm::vec3(0.5f, 0.5f, 0.5f); // Grey obstacles
                 glUniform3fv(colorLoc, 1, glm::value_ptr(color));
                 glUniform1i(isAppleLoc, 0);
+                glUniform1i(isBananaLoc, 0);
+                glUniform1i(isGoldenAppleLoc, 0);
                 glUniform1i(isSnakeLoc, 0);
                 glBufferSubData(GL_ARRAY_BUFFER, 0, obstacles.size() * sizeof(glm::vec2), obstacles.data());
                 glDrawArraysInstanced(GL_TRIANGLES, 0, 6, static_cast<unsigned int>(obstacles.size()));
+            }
+
+            // Draw Banana
+            if (banana.active) {
+                color = glm::vec3(1.0f, 0.9f, 0.1f); // Bright yellow for visibility
+                glUniform3fv(colorLoc, 1, glm::value_ptr(color));
+                glUniform1i(isAppleLoc, 0);
+                glUniform1i(isBananaLoc, 1);
+                glUniform1i(isGoldenAppleLoc, 0);
+                glUniform1i(isSnakeLoc, 0);
+
+                glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), &banana.pos);
+                glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1);
+            }
+
+            // Draw Golden Apple
+            if (goldenApple.active) {
+                color = glm::vec3(1.0f, 0.85f, 0.0f); // Gold
+                glUniform3fv(colorLoc, 1, glm::value_ptr(color));
+                glUniform1i(isAppleLoc, 0);
+                glUniform1i(isBananaLoc, 0);
+                glUniform1i(isGoldenAppleLoc, 1);
+                glUniform1i(isSnakeLoc, 0);
+
+                glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), &goldenApple.pos);
+                glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1);
             }
 
             // 3. Restore viewport to full window for UI
@@ -600,6 +729,33 @@ int main()
             // Draw Score
             std::string scoreStr = "Points: " + std::to_string(score);
             RenderText(textShaderProgram, scoreStr, 20.0f, SCR_HEIGHT - 40.0f, 0.5f, glm::vec3(1.0f, 1.0f, 1.0f));
+
+            // Draw Banana Timer
+            if (banana.active && !gameOver && !paused) {
+                float timeLeft = 5.0f - (currentTime - banana.spawnTime);
+                if (timeLeft > 0) {
+                    std::string timeStr = std::to_string((int)std::ceil(timeLeft)) + "s";
+                    float cellW = (float)vpW / GRID_WIDTH;
+                    float cellH = (float)vpH / GRID_HEIGHT;
+                    // Position text above the banana
+                    float tx = vpX + banana.pos.x * cellW + cellW * 0.2f;
+                    float ty = vpY + (banana.pos.y + 0.8f) * cellH;
+                    RenderText(textShaderProgram, timeStr, tx, ty, 0.4f, glm::vec3(1.0f, 1.0f, 0.0f));
+                }
+            }
+
+            // Draw Golden Apple Timer
+            if (goldenApple.active && !gameOver && !paused) {
+                float timeLeft = 7.0f - (currentTime - goldenApple.spawnTime);
+                if (timeLeft > 0) {
+                    std::string timeStr = std::to_string((int)std::ceil(timeLeft)) + "s";
+                    float cellW = (float)vpW / GRID_WIDTH;
+                    float cellH = (float)vpH / GRID_HEIGHT;
+                    float tx = vpX + goldenApple.pos.x * cellW + cellW * 0.2f;
+                    float ty = vpY + (goldenApple.pos.y + 0.8f) * cellH;
+                    RenderText(textShaderProgram, timeStr, tx, ty, 0.4f, glm::vec3(1.0f, 0.8f, 0.0f));
+                }
+            }
 
             if (aiEnabled && !gameOver) {
                 RenderText(textShaderProgram, "AI AUTO-PILOT ENABLED [I]", SCR_WIDTH - 300.0f, SCR_HEIGHT - 40.0f, 0.4f, glm::vec3(0.0f, 1.0f, 1.0f));
@@ -741,59 +897,43 @@ void processInput(GLFWwindow* window, Direction& dir, bool& shouldReset, bool ga
         dir = Direction::RIGHT;
 }
 
-void generateNewFood(glm::vec2& food, const std::deque<glm::vec2>& snake, const std::vector<glm::vec2>& obstacles) {
+glm::vec2 getRandomEmptyPosition(const std::deque<glm::vec2>& snake, const std::vector<glm::vec2>& obstacles, const std::vector<glm::vec2>& otherItems) {
     static std::random_device rd;
     static std::mt19937 gen(rd());
     std::uniform_int_distribution<> distribX(0, GRID_WIDTH - 1);
     std::uniform_int_distribution<> distribY(0, GRID_HEIGHT - 1);
 
-    bool onSnake;
-    do {
-        onSnake = false;
-        food.x = distribX(gen);
-        food.y = distribY(gen);
-        for (const auto& segment : snake) {
-            if (food == segment) {
-                onSnake = true;
-                break;
-            }
-        }
-        if (!onSnake) {
-            for (const auto& obs : obstacles) {
-                if (food == obs) {
-                    onSnake = true; // reusing onSnake flag for collision check
-                    break;
-                }
-            }
-        }
-    } while (onSnake);
-}
-
-void generateObstacle(std::vector<glm::vec2>& obstacles, const std::deque<glm::vec2>& snake, const glm::vec2& food) {
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    std::uniform_int_distribution<> distribX(0, GRID_WIDTH - 1);
-    std::uniform_int_distribution<> distribY(0, GRID_HEIGHT - 1);
-
-    glm::vec2 obs;
+    glm::vec2 pos;
     bool collision;
     do {
         collision = false;
-        obs.x = distribX(gen);
-        obs.y = distribY(gen);
+        pos = {distribX(gen), distribY(gen)};
         
-        if (obs == food) collision = true;
-        for (const auto& s : snake) {
-            if (obs == s) collision = true;
-        }
-        for (const auto& o : obstacles) {
-            if (obs == o) collision = true;
-        }
+        for (const auto& s : snake) if (pos == s) { collision = true; break; }
+        if (collision) continue;
+        for (const auto& o : obstacles) if (pos == o) { collision = true; break; }
+        if (collision) continue;
+        for (const auto& item : otherItems) if (pos == item) { collision = true; break; }
+
     } while (collision);
-    obstacles.push_back(obs);
+    return pos;
 }
 
-void resetGame(std::deque<glm::vec2>& snake, Direction& dir, glm::vec2& food, bool& gameOver, int& score, std::vector<glm::vec2>& obstacles, float& timeBetweenUpdates) {
+void generateNewFood(glm::vec2& food, const std::deque<glm::vec2>& snake, const std::vector<glm::vec2>& obstacles, const Banana& b, const GoldenApple& g) {
+    std::vector<glm::vec2> others;
+    if (b.active) others.push_back(b.pos);
+    if (g.active) others.push_back(g.pos);
+    food = getRandomEmptyPosition(snake, obstacles, others);
+}
+
+void generateObstacle(std::vector<glm::vec2>& obstacles, const std::deque<glm::vec2>& snake, const glm::vec2& food, const Banana& b, const GoldenApple& g) {
+    std::vector<glm::vec2> others = {food};
+    if (b.active) others.push_back(b.pos);
+    if (g.active) others.push_back(g.pos);
+    obstacles.push_back(getRandomEmptyPosition(snake, obstacles, others));
+}
+
+void resetGame(std::deque<glm::vec2>& snake, Direction& dir, glm::vec2& food, bool& gameOver, int& score, std::vector<glm::vec2>& obstacles, float& timeBetweenUpdates, Banana& banana, float& nextBananaSpawnTime, GoldenApple& goldenApple) {
     spdlog::info("--- New Game Started ---");
     snake.clear();
     snake.push_front({GRID_WIDTH / 2, GRID_HEIGHT / 2});
@@ -805,7 +945,31 @@ void resetGame(std::deque<glm::vec2>& snake, Direction& dir, glm::vec2& food, bo
     score = 0;
     obstacles.clear();
     timeBetweenUpdates = 0.1f;
-    generateNewFood(food, snake, obstacles);
+    
+    // Order matters slightly here to avoid initial collisions
+    banana.active = false;
+    goldenApple.active = false;
+    generateNewFood(food, snake, obstacles, banana, goldenApple);
+    generateBanana(banana, snake, food, obstacles, goldenApple);
+    generateGoldenApple(goldenApple, snake, food, obstacles, banana);
+    
+    banana.spawnTime = static_cast<float>(glfwGetTime());
+    goldenApple.spawnTime = static_cast<float>(glfwGetTime());
+    nextBananaSpawnTime = 0.0f;
+}
+
+void generateBanana(Banana& banana, const std::deque<glm::vec2>& snake, const glm::vec2& food, const std::vector<glm::vec2>& obstacles, const GoldenApple& g) {
+    std::vector<glm::vec2> others = {food};
+    if (g.active) others.push_back(g.pos);
+    banana.pos = getRandomEmptyPosition(snake, obstacles, others);
+    banana.active = true;
+}
+
+void generateGoldenApple(GoldenApple& goldenApple, const std::deque<glm::vec2>& snake, const glm::vec2& food, const std::vector<glm::vec2>& obstacles, const Banana& banana) {
+    std::vector<glm::vec2> others = {food};
+    if (banana.active) others.push_back(banana.pos);
+    goldenApple.pos = getRandomEmptyPosition(snake, obstacles, others);
+    goldenApple.active = true;
 }
 
 Direction getAIDirection(const std::deque<glm::vec2>& snake, glm::vec2 food, const std::vector<glm::vec2>& obstacles, Direction currentDir) {
@@ -819,7 +983,7 @@ Direction getAIDirection(const std::deque<glm::vec2>& snake, glm::vec2 food, con
 
     std::queue<Node> q;
     // Use a grid to track both visited and occupied cells for O(1) lookup
-    bool blocked[GRID_WIDTH][GRID_HEIGHT] = {false};
+    bool blocked[GRID_WIDTH][GRID_HEIGHT] = {};
 
     // Pre-populate the occupancy grid
     for (const auto& s : snake) blocked[(int)s.x][(int)s.y] = true;
@@ -893,7 +1057,7 @@ Direction getAIDirection(const std::deque<glm::vec2>& snake, glm::vec2 food, con
     return currentDir;
 }
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height)
+void framebuffer_size_callback(GLFWwindow* /*window*/, int width, int height)
 {
     glViewport(0, 0, width, height);
 }

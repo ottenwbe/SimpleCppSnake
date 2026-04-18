@@ -17,6 +17,11 @@
 #include <algorithm>
 #include <string>
 #include <map>
+#include <fstream>
+#include <filesystem>
+
+#include <unistd.h>
+#include <limits.h>
 
 // Game Settings
 const int GRID_WIDTH = 30;
@@ -47,6 +52,37 @@ struct GoldenApple {
     bool active = false;
 };
 
+struct HighScoreEntry {
+    int score;
+    bool aiUsed;
+    bool obstaclesEnabled;
+};
+
+struct GameState {
+    std::deque<glm::vec2> snake;
+    Direction snakeDirection = Direction::RIGHT;
+    glm::vec2 food;
+    std::vector<glm::vec2> obstacles;
+    Banana banana;
+    GoldenApple goldenApple;
+    float nextBananaSpawnTime = 0.0f;
+    bool gameOver = false;
+    bool shouldReset = false;
+    bool paused = false;
+    bool inMenu = true;
+    bool aiEnabled = false;
+    int score = 0;
+    float lastUpdateTime = 0.0f;
+    float timeBetweenUpdates = 0.1f;
+    std::vector<HighScoreEntry> highScores;
+    bool obstaclesEnabled = true;
+    int menuSelection = 0;
+    bool aiUsedThisRun = false;
+    bool highScoreChecked = false;
+    bool isNewTopScore = false;
+    std::string highScorePath;
+};
+
 std::map<char, Character> Characters;
 unsigned int textVAO, textVBO;
 unsigned int textShaderProgram;
@@ -54,15 +90,20 @@ unsigned int textShaderProgram;
 // Function Prototypes
 void RenderText(unsigned int shader, std::string text, float x, float y, float scale, glm::vec3 color);
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
-void processInput(GLFWwindow* window, Direction& dir, bool& shouldReset, bool gameOver, bool& paused, bool& inMenu, bool& aiEnabled);
-glm::vec2 getRandomEmptyPosition(const std::deque<glm::vec2>& snake, const std::vector<glm::vec2>& obstacles, const std::vector<glm::vec2>& otherItems);
-void generateNewFood(glm::vec2& food, const std::deque<glm::vec2>& snake, const std::vector<glm::vec2>& obstacles, const Banana& b, const GoldenApple& g);
-void generateObstacle(std::vector<glm::vec2>& obstacles, const std::deque<glm::vec2>& snake, const glm::vec2& food, const Banana& b, const GoldenApple& g);
-void resetGame(std::deque<glm::vec2>& snake, Direction& dir, glm::vec2& food, bool& gameOver, int& score, std::vector<glm::vec2>& obstacles, float& timeBetweenUpdates, Banana& banana, float& nextBananaSpawnTime, GoldenApple& goldenApple);
+void handleInput(GLFWwindow* window, GameState& state);
+glm::vec2 getRandomEmptyPosition(const GameState& state, const std::vector<glm::vec2>& extraExclusions);
+void generateNewFood(GameState& state);
+void generateObstacle(GameState& state);
+void resetGame(GameState& state);
 unsigned int createShaderProgram(const char* vertexSource, const char* fragmentSource);
-void generateBanana(Banana& banana, const std::deque<glm::vec2>& snake, const glm::vec2& food, const std::vector<glm::vec2>& obstacles, const GoldenApple& g);
-void generateGoldenApple(GoldenApple& goldenApple, const std::deque<glm::vec2>& snake, const glm::vec2& food, const std::vector<glm::vec2>& obstacles, const Banana& banana);
-Direction getAIDirection(const std::deque<glm::vec2>& snake, glm::vec2 food, const std::vector<glm::vec2>& obstacles, Direction currentDir);
+void updateGame(GameState& state, float currentTime);
+std::string getExecutableDir();
+void updateHighScores(GameState& state);
+void loadHighScore(GameState& state);
+void saveHighScore(const GameState& state);
+void generateBanana(GameState& state);
+void generateGoldenApple(GameState& state);
+Direction getAIDirection(const GameState& state);
 
 
 const char *vertexShaderSource = R"glsl(
@@ -467,24 +508,11 @@ int main()
     glEnableVertexAttribArray(0);
     glBindVertexArray(0);
 
-    // Game State Variables
-    std::deque<glm::vec2> snake;
-    Direction snakeDirection;
-    glm::vec2 food;
-    std::vector<glm::vec2> obstacles;
-    Banana banana;
-    GoldenApple goldenApple;
-    float nextBananaSpawnTime = 0.0f;
-    bool gameOver = false;
-    bool shouldReset = false;
-    bool paused = false;
-    bool inMenu = true;
-    bool aiEnabled = false;
-    int score = 0;
-
-    float lastUpdateTime = 0.0f;
-    float timeBetweenUpdates = 0.1f; // 10 moves per second
-    resetGame(snake, snakeDirection, food, gameOver, score, obstacles, timeBetweenUpdates, banana, nextBananaSpawnTime, goldenApple);
+    // Centralized Game State
+    GameState state;
+    state.highScorePath = (std::filesystem::path(getExecutableDir()) / "highscore.txt").string();
+    loadHighScore(state);
+    resetGame(state);
     
     // Setup text projection once
     glm::mat4 projection = glm::ortho(0.0f, static_cast<float>(SCR_WIDTH), 0.0f, static_cast<float>(SCR_HEIGHT));
@@ -502,106 +530,14 @@ int main()
     while (!glfwWindowShouldClose(window))
     {
         float currentTime = glfwGetTime();
-        processInput(window, snakeDirection, shouldReset, gameOver, paused, inMenu, aiEnabled);
+        handleInput(window, state);
 
-        if (shouldReset) {
-            resetGame(snake, snakeDirection, food, gameOver, score, obstacles, timeBetweenUpdates, banana, nextBananaSpawnTime, goldenApple);
-            shouldReset = false;
-            // Keep AI state across resets if desired, 
-            // but usually cleaner to let user toggle it.
-            // aiEnabled = false; 
-            paused = false;
+        if (state.shouldReset) {
+            updateHighScores(state);
+            resetGame(state);
         }
 
-        // Handle Banana Expiry and Spawning
-        if (banana.active && (currentTime - banana.spawnTime) > 5.0f) {
-            banana.active = false;
-            nextBananaSpawnTime = currentTime + 10.0f;
-        }
-
-        // Handle Golden Apple Expiry
-        if (goldenApple.active && (currentTime - goldenApple.spawnTime) > 7.0f) {
-            goldenApple.active = false;
-        }
-
-        // Fixed-timestep update
-        if (currentTime - lastUpdateTime >= timeBetweenUpdates && !gameOver && !paused && !inMenu)
-        {
-            lastUpdateTime = currentTime;
-
-            if (aiEnabled) {
-                snakeDirection = getAIDirection(snake, food, obstacles, snakeDirection);
-            }
-
-            glm::vec2 newHead = snake.front();
-            if (snakeDirection == Direction::UP)    newHead.y += 1;
-            if (snakeDirection == Direction::DOWN)  newHead.y -= 1;
-            if (snakeDirection == Direction::LEFT)  newHead.x -= 1;
-            if (snakeDirection == Direction::RIGHT) newHead.x += 1;
-
-            // Wall collision
-            if (newHead.x < 0 || newHead.x >= GRID_WIDTH || newHead.y < 0 || newHead.y >= GRID_HEIGHT) {
-                gameOver = true;
-            }
-
-            // Obstacle collision
-            for (const auto& obs : obstacles) {
-                if (newHead == obs) {
-                    gameOver = true;
-                    break;
-                }
-            }
-
-            // Self collision
-            for (size_t i = 1; i < snake.size(); ++i) {
-                if (newHead == snake[i]) {
-                    gameOver = true;
-                    break;
-                }
-            }
-
-            if (!gameOver) {
-                snake.push_front(newHead);
-
-                if (newHead == food) {
-                    score++;
-                    // Increase speed and add obstacle
-                    timeBetweenUpdates = std::max(0.03f, timeBetweenUpdates * 0.98f);
-                    generateObstacle(obstacles, snake, food, banana, goldenApple);
-                    generateNewFood(food, snake, obstacles, banana, goldenApple);
-                } else if (banana.active && newHead == banana.pos) {
-                    score += 2;
-                    banana.active = false;
-                    nextBananaSpawnTime = currentTime + 10.0f;
-                    // Bananas provide bonus points without increasing snake length
-                    snake.pop_back();
-                } else if (goldenApple.active && newHead == goldenApple.pos) {
-                    score += 5;
-                    goldenApple.active = false;
-                    // Golden apples provide bonus points without increasing snake length
-                    snake.pop_back();
-                } else {
-                    snake.pop_back();
-                }
-
-                // Spawn a banana if it is time
-                if (!banana.active && currentTime >= nextBananaSpawnTime && !gameOver && !paused && !inMenu) {
-                    generateBanana(banana, snake, food, obstacles, goldenApple);
-                    banana.spawnTime = currentTime;
-                }
-
-                // Randomly spawn a golden apple if one isn't already active
-                if (!goldenApple.active && !gameOver && !paused && !inMenu) {
-                    static std::default_random_engine goldRand(std::random_device{}());
-                    std::uniform_real_distribution<float> chance(0.0f, 1.0f);
-                    // 0.2% chance per game tick (~once every 50 seconds at 0.1s speed)
-                    if (chance(goldRand) < 0.002f) {
-                        generateGoldenApple(goldenApple, snake, food, obstacles, banana);
-                        goldenApple.spawnTime = currentTime;
-                    }
-                }
-            }
-        }
+        updateGame(state, currentTime);
 
         // Render        
         int winW, winH;
@@ -633,17 +569,31 @@ int main()
         if (static_cast<unsigned int>(winW) != SCR_WIDTH || static_cast<unsigned int>(winH) != SCR_HEIGHT)
             updateUIProjection(winW, winH);
 
-        if (inMenu) {
-            RenderText(textShaderProgram, "SNAKE GAME", SCR_WIDTH / 2.0f - 150.0f, SCR_HEIGHT / 2.0f + 100.0f, 1.2f, glm::vec3(0.0, 0.8, 0.2));
-           
-            RenderText(textShaderProgram, "Press ENTER to Start", SCR_WIDTH / 2.0f - 180.0f, SCR_HEIGHT / 2.0f - 40.0f, 0.8f, glm::vec3(1.0, 1.0, 1.0));
+        if (state.inMenu) {
+            RenderText(textShaderProgram, "SNAKE GAME", SCR_WIDTH / 2.0f - 150.0f, SCR_HEIGHT / 2.0f + 200.0f, 1.2f, glm::vec3(0.0, 0.8, 0.2));
 
-            RenderText(textShaderProgram, "Controls:", SCR_WIDTH / 2.0f - 50.0f, SCR_HEIGHT / 2.0f - 100.0f, 0.6f, glm::vec3(1.0, 0.8, 0.2));
-            RenderText(textShaderProgram, "[Arrows] Move / Change Selection", SCR_WIDTH / 2.0f - 230.0f, SCR_HEIGHT / 2.0f - 130.0f, 0.5f, glm::vec3(0.7));
-            RenderText(textShaderProgram, "[Space/Enter] Select / Pause", SCR_WIDTH / 2.0f - 190.0f, SCR_HEIGHT / 2.0f - 155.0f, 0.5f, glm::vec3(0.7));
-            RenderText(textShaderProgram, "[Esc] Back / Quit", SCR_WIDTH / 2.0f - 120.0f, SCR_HEIGHT / 2.0f - 180.0f, 0.5f, glm::vec3(0.7));
-            RenderText(textShaderProgram, "[F11] Fullscreen", SCR_WIDTH / 2.0f - 110.0f, SCR_HEIGHT / 2.0f - 205.0f, 0.5f, glm::vec3(0.7));
-            RenderText(textShaderProgram, "[I] AI Auto-Pilot", SCR_WIDTH / 2.0f - 105.0f, SCR_HEIGHT / 2.0f - 230.0f, 0.5f, glm::vec3(0.7));
+            RenderText(textShaderProgram, "Top 5 High Scores:", SCR_WIDTH / 2.0f - 150.0f, SCR_HEIGHT / 2.0f + 140.0f, 0.6f, glm::vec3(1.0, 0.9, 0.3));
+            for (size_t i = 0; i < state.highScores.size(); ++i) {
+                std::string hs = std::to_string(i + 1) + ". " + std::to_string(state.highScores[i].score) + 
+                                 (state.highScores[i].aiUsed ? " (AI)" : " (No AI)") +
+                                 (state.highScores[i].obstaclesEnabled ? " (Obs)" : " (No Obs)");
+                RenderText(textShaderProgram, hs, SCR_WIDTH / 2.0f - 100.0f, SCR_HEIGHT / 2.0f + 110.0f - i * 25.0f, 0.5f, glm::vec3(1.0, 0.9, 0.3));
+            }
+
+            // Interactive Menu Selection
+            glm::vec3 startColor = (state.menuSelection == 0) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
+            RenderText(textShaderProgram, "Start Game", SCR_WIDTH / 2.0f - 100.0f, SCR_HEIGHT / 2.0f - 40.0f, 0.8f, startColor);
+
+            glm::vec3 obsColor = (state.menuSelection == 1) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
+            std::string obsText = "Obstacle Spawning: " + std::string(state.obstaclesEnabled ? "ON" : "OFF");
+            RenderText(textShaderProgram, obsText, SCR_WIDTH / 2.0f - 180.0f, SCR_HEIGHT / 2.0f - 80.0f, 0.6f, obsColor);
+
+            RenderText(textShaderProgram, "Controls:", SCR_WIDTH / 2.0f - 50.0f, SCR_HEIGHT / 2.0f - 130.0f, 0.6f, glm::vec3(1.0, 0.8, 0.2));
+            RenderText(textShaderProgram, "[Arrows] Move / Change Selection", SCR_WIDTH / 2.0f - 230.0f, SCR_HEIGHT / 2.0f - 160.0f, 0.5f, glm::vec3(0.7));
+            RenderText(textShaderProgram, "[Space/Enter] Select / Pause", SCR_WIDTH / 2.0f - 190.0f, SCR_HEIGHT / 2.0f - 185.0f, 0.5f, glm::vec3(0.7));
+            RenderText(textShaderProgram, "[Esc] Back / Quit", SCR_WIDTH / 2.0f - 120.0f, SCR_HEIGHT / 2.0f - 210.0f, 0.5f, glm::vec3(0.7));
+            RenderText(textShaderProgram, "[F11] Fullscreen", SCR_WIDTH / 2.0f - 110.0f, SCR_HEIGHT / 2.0f - 235.0f, 0.5f, glm::vec3(0.7));
+            RenderText(textShaderProgram, "[I] AI Auto-Pilot", SCR_WIDTH / 2.0f - 105.0f, SCR_HEIGHT / 2.0f - 260.0f, 0.5f, glm::vec3(0.7));
         } else {
             // 2. Set viewport to the Game Grid area
             glViewport(vpX, vpY, vpW, vpH);
@@ -661,15 +611,15 @@ int main()
             glUniform2f(gridCountLoc, (float)GRID_WIDTH, (float)GRID_HEIGHT);
 
             // Draw Snake
-            glm::vec3 color = gameOver ? glm::vec3(0.5f, 0.0f, 0.0f) : glm::vec3(0.0f, 0.8f, 0.2f);
+            glm::vec3 color = state.gameOver ? glm::vec3(0.5f, 0.0f, 0.0f) : glm::vec3(0.0f, 0.8f, 0.2f);
             glUniform3fv(colorLoc, 1, glm::value_ptr(color));
             glUniform1i(isAppleLoc, 0);
             glUniform1i(isBananaLoc, 0);
             glUniform1i(isGoldenAppleLoc, 0);
             glUniform1i(isSnakeLoc, 1);
-            glUniform1i(snakeDirectionLoc, static_cast<int>(snakeDirection));
+            glUniform1i(snakeDirectionLoc, static_cast<int>(state.snakeDirection));
             
-            std::vector<glm::vec2> snakeData(snake.begin(), snake.end());
+            std::vector<glm::vec2> snakeData(state.snake.begin(), state.snake.end());
             glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
             glBufferSubData(GL_ARRAY_BUFFER, 0, snakeData.size() * sizeof(glm::vec2), snakeData.data());
             glDrawArraysInstanced(GL_TRIANGLES, 0, 6, static_cast<unsigned int>(snakeData.size()));
@@ -682,23 +632,23 @@ int main()
             glUniform1i(isGoldenAppleLoc, 0);
             glUniform1i(isSnakeLoc, 0);
 
-            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), &food);
+            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), &state.food);
             glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1);
 
             // Draw Obstacles
-            if (!obstacles.empty()) {
+            if (!state.obstacles.empty()) {
                 color = glm::vec3(0.5f, 0.5f, 0.5f); // Grey obstacles
                 glUniform3fv(colorLoc, 1, glm::value_ptr(color));
                 glUniform1i(isAppleLoc, 0);
                 glUniform1i(isBananaLoc, 0);
                 glUniform1i(isGoldenAppleLoc, 0);
                 glUniform1i(isSnakeLoc, 0);
-                glBufferSubData(GL_ARRAY_BUFFER, 0, obstacles.size() * sizeof(glm::vec2), obstacles.data());
-                glDrawArraysInstanced(GL_TRIANGLES, 0, 6, static_cast<unsigned int>(obstacles.size()));
+                glBufferSubData(GL_ARRAY_BUFFER, 0, state.obstacles.size() * sizeof(glm::vec2), state.obstacles.data());
+                glDrawArraysInstanced(GL_TRIANGLES, 0, 6, static_cast<unsigned int>(state.obstacles.size()));
             }
 
             // Draw Banana
-            if (banana.active) {
+            if (state.banana.active) {
                 color = glm::vec3(1.0f, 0.9f, 0.1f); // Bright yellow for visibility
                 glUniform3fv(colorLoc, 1, glm::value_ptr(color));
                 glUniform1i(isAppleLoc, 0);
@@ -706,12 +656,12 @@ int main()
                 glUniform1i(isGoldenAppleLoc, 0);
                 glUniform1i(isSnakeLoc, 0);
 
-                glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), &banana.pos);
+                glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), &state.banana.pos);
                 glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1);
             }
 
             // Draw Golden Apple
-            if (goldenApple.active) {
+            if (state.goldenApple.active) {
                 color = glm::vec3(1.0f, 0.85f, 0.0f); // Gold
                 glUniform3fv(colorLoc, 1, glm::value_ptr(color));
                 glUniform1i(isAppleLoc, 0);
@@ -719,7 +669,7 @@ int main()
                 glUniform1i(isGoldenAppleLoc, 1);
                 glUniform1i(isSnakeLoc, 0);
 
-                glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), &goldenApple.pos);
+                glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), &state.goldenApple.pos);
                 glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1);
             }
 
@@ -727,41 +677,41 @@ int main()
             glViewport(0, 0, winW, winH);
 
             // Draw Score
-            std::string scoreStr = "Points: " + std::to_string(score);
+            std::string scoreStr = "Points: " + std::to_string(state.score);
             RenderText(textShaderProgram, scoreStr, 20.0f, SCR_HEIGHT - 40.0f, 0.5f, glm::vec3(1.0f, 1.0f, 1.0f));
 
             // Draw Banana Timer
-            if (banana.active && !gameOver && !paused) {
-                float timeLeft = 5.0f - (currentTime - banana.spawnTime);
+            if (state.banana.active && !state.gameOver && !state.paused) {
+                float timeLeft = 5.0f - (currentTime - state.banana.spawnTime);
                 if (timeLeft > 0) {
                     std::string timeStr = std::to_string((int)std::ceil(timeLeft)) + "s";
                     float cellW = (float)vpW / GRID_WIDTH;
                     float cellH = (float)vpH / GRID_HEIGHT;
                     // Position text above the banana
-                    float tx = vpX + banana.pos.x * cellW + cellW * 0.2f;
-                    float ty = vpY + (banana.pos.y + 0.8f) * cellH;
+                    float tx = vpX + state.banana.pos.x * cellW + cellW * 0.2f;
+                    float ty = vpY + (state.banana.pos.y + 0.8f) * cellH;
                     RenderText(textShaderProgram, timeStr, tx, ty, 0.4f, glm::vec3(1.0f, 1.0f, 0.0f));
                 }
             }
 
             // Draw Golden Apple Timer
-            if (goldenApple.active && !gameOver && !paused) {
-                float timeLeft = 7.0f - (currentTime - goldenApple.spawnTime);
+            if (state.goldenApple.active && !state.gameOver && !state.paused) {
+                float timeLeft = 7.0f - (currentTime - state.goldenApple.spawnTime);
                 if (timeLeft > 0) {
                     std::string timeStr = std::to_string((int)std::ceil(timeLeft)) + "s";
                     float cellW = (float)vpW / GRID_WIDTH;
                     float cellH = (float)vpH / GRID_HEIGHT;
-                    float tx = vpX + goldenApple.pos.x * cellW + cellW * 0.2f;
-                    float ty = vpY + (goldenApple.pos.y + 0.8f) * cellH;
+                    float tx = vpX + state.goldenApple.pos.x * cellW + cellW * 0.2f;
+                    float ty = vpY + (state.goldenApple.pos.y + 0.8f) * cellH;
                     RenderText(textShaderProgram, timeStr, tx, ty, 0.4f, glm::vec3(1.0f, 0.8f, 0.0f));
                 }
             }
 
-            if (aiEnabled && !gameOver) {
+            if (state.aiEnabled && !state.gameOver) {
                 RenderText(textShaderProgram, "AI AUTO-PILOT ENABLED [I]", SCR_WIDTH - 300.0f, SCR_HEIGHT - 40.0f, 0.4f, glm::vec3(0.0f, 1.0f, 1.0f));
             }
 
-            if (paused) {
+            if (state.paused) {
                 glUseProgram(borderShaderProgram);
                 glBindVertexArray(pauseVAO);
                 glUniform3f(borderColorLoc, 1.0f, 1.0f, 1.0f);
@@ -772,10 +722,14 @@ int main()
             }
         }
 
-        if (gameOver) {
-            RenderText(textShaderProgram, "GAME OVER", SCR_WIDTH / 2.0f - 150.0f, SCR_HEIGHT / 2.0f + 50.0f, 1.0f, glm::vec3(1.0, 0.2, 0.2));
+        if (state.gameOver) {
+            RenderText(textShaderProgram, "GAME OVER", SCR_WIDTH / 2.0f - 150.0f, SCR_HEIGHT / 2.0f + 100.0f, 1.0f, glm::vec3(1.0, 0.2, 0.2));
             
-            std::string scoreText = "SCORE: " + std::to_string(score);
+            if (state.isNewTopScore) {
+                RenderText(textShaderProgram, "NEW TOP 5 SCORE!", SCR_WIDTH / 2.0f - 180.0f, SCR_HEIGHT / 2.0f + 50.0f, 0.7f, glm::vec3(1.0, 0.8, 0.0));
+            }
+
+            std::string scoreText = "SCORE: " + std::to_string(state.score);
             RenderText(textShaderProgram, scoreText, SCR_WIDTH / 2.0f - 110.0f, SCR_HEIGHT / 2.0f, 0.8f, glm::vec3(1.0, 1.0, 1.0));
 
             RenderText(textShaderProgram, "Press Space to Restart", SCR_WIDTH / 2.0f - 200.0f, SCR_HEIGHT / 2.0f - 60.0f, 0.7f, glm::vec3(0.8, 0.8, 0.8));
@@ -784,7 +738,6 @@ int main()
 
 
         glfwSwapBuffers(window);
-        glfwPollEvents();
     }
     
     spdlog::info("Shutting down...");
@@ -815,8 +768,117 @@ int main()
     return 0;
 }
 
-void processInput(GLFWwindow* window, Direction& dir, bool& shouldReset, bool gameOver, bool& paused, bool& inMenu, bool& aiEnabled)
+void updateGame(GameState& state, float currentTime) {
+    // Handle Banana Expiry and Spawning
+    if (state.banana.active && (currentTime - state.banana.spawnTime) > 5.0f) {
+        state.banana.active = false;
+        state.nextBananaSpawnTime = currentTime + 10.0f;
+    }
+
+    // Handle Golden Apple Expiry
+    if (state.goldenApple.active && (currentTime - state.goldenApple.spawnTime) > 7.0f) {
+        state.goldenApple.active = false;
+    }
+
+    // Fixed-timestep update
+    if (currentTime - state.lastUpdateTime >= state.timeBetweenUpdates && !state.gameOver && !state.paused && !state.inMenu)
+    {
+        state.lastUpdateTime = currentTime;
+
+        if (state.aiEnabled) {
+            state.snakeDirection = getAIDirection(state);
+            state.aiUsedThisRun = true;
+        }
+
+        glm::vec2 newHead = state.snake.front();
+        if (state.snakeDirection == Direction::UP)    newHead.y += 1;
+        if (state.snakeDirection == Direction::DOWN)  newHead.y -= 1;
+        if (state.snakeDirection == Direction::LEFT)  newHead.x -= 1;
+        if (state.snakeDirection == Direction::RIGHT) newHead.x += 1;
+
+        // Wall collision
+        if (newHead.x < 0 || newHead.x >= GRID_WIDTH || newHead.y < 0 || newHead.y >= GRID_HEIGHT) {
+            state.gameOver = true;
+        }
+
+        // Obstacle collision
+        for (const auto& obs : state.obstacles) {
+            if (newHead == obs) {
+                state.gameOver = true;
+                break;
+            }
+        }
+
+        // Self collision
+        for (size_t i = 1; i < state.snake.size(); ++i) {
+            if (newHead == state.snake[i]) {
+                state.gameOver = true;
+                break;
+            }
+        }
+
+        if (!state.gameOver) {
+            state.snake.push_front(newHead);
+
+            if (newHead == state.food) {
+                state.score++;
+                // Increase speed and add obstacle
+                state.timeBetweenUpdates = std::max(0.03f, state.timeBetweenUpdates * 0.98f);
+                
+                static std::default_random_engine obsRand(std::random_device{}());
+                std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+                if (state.obstaclesEnabled && dist(obsRand) < 0.5f) {
+                    generateObstacle(state);
+                }
+                
+                generateNewFood(state);
+            } else if (state.banana.active && newHead == state.banana.pos) {
+                state.score += 2;
+                state.banana.active = false;
+                state.nextBananaSpawnTime = currentTime + 10.0f;
+                if (state.obstaclesEnabled) {
+                    generateObstacle(state);
+                }
+            } else if (state.goldenApple.active && newHead == state.goldenApple.pos) {
+                state.score += 5;
+                state.goldenApple.active = false;
+                if (state.obstaclesEnabled) {
+                    generateObstacle(state);
+                    generateObstacle(state);
+                }
+            } else {
+                state.snake.pop_back();
+            }
+
+            // Spawn a banana if it is time
+            if (!state.banana.active && currentTime >= state.nextBananaSpawnTime && !state.gameOver && !state.paused && !state.inMenu) {
+                generateBanana(state);
+                state.banana.spawnTime = currentTime;
+            }
+
+            // Randomly spawn a golden apple if one isn't already active
+            if (!state.goldenApple.active && !state.gameOver && !state.paused && !state.inMenu) {
+                static std::default_random_engine goldRand(std::random_device{}());
+                std::uniform_real_distribution<float> chance(0.0f, 1.0f);
+                if (chance(goldRand) < 0.002f) {
+                    generateGoldenApple(state);
+                    state.goldenApple.spawnTime = currentTime;
+                }
+            }
+        }
+    }
+
+    // Ensure high scores are checked if the game just ended
+    if (state.gameOver && !state.highScoreChecked) {
+        updateHighScores(state);
+    }
+}
+
+void handleInput(GLFWwindow* window, GameState& state)
 {
+    // Poll for and process events
+    glfwPollEvents();
+
     static bool actionPressedLastFrame = false;
     bool actionPressed = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) || (glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS);
 
@@ -847,11 +909,11 @@ void processInput(GLFWwindow* window, Direction& dir, bool& shouldReset, bool ga
     bool escPressed = glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS;
 
     if (escPressed && !escPressedLastFrame) {
-        if (inMenu) {
+        if (state.inMenu) {
             glfwSetWindowShouldClose(window, true);
         } else {
-            inMenu = true;
-            shouldReset = true;
+            state.inMenu = true;
+            state.shouldReset = true;
         }
     }
     escPressedLastFrame = escPressed;
@@ -859,45 +921,61 @@ void processInput(GLFWwindow* window, Direction& dir, bool& shouldReset, bool ga
     static bool iPressedLastFrame = false;
     bool iPressed = glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS;
     if (iPressed && !iPressedLastFrame) {
-        aiEnabled = !aiEnabled;
+        state.aiEnabled = !state.aiEnabled;
     }
     iPressedLastFrame = iPressed;
 
     // This part handles Enter/Space key
     if (actionPressed && !actionPressedLastFrame) {
-        if (inMenu) {
-            inMenu = false;
-            shouldReset = true; // Reset with new settings
-        } else if (gameOver) {
-            shouldReset = true;
+        if (state.inMenu) {
+            if (state.menuSelection == 0) {
+                state.inMenu = false;
+                state.shouldReset = true; // Reset with new settings
+            } else if (state.menuSelection == 1) {
+                state.obstaclesEnabled = !state.obstaclesEnabled;
+            }
+        } else if (state.gameOver) {
+            state.shouldReset = true;
         } else {
-            paused = !paused;
+            state.paused = !state.paused;
         }
     }
     actionPressedLastFrame = actionPressed;
 
-    // Menu Navigation for Resolution
-    if (inMenu) {
-        // Arrow keys for menu navigation can go here if more options are added.
-        // The resolution switching has been removed as the game now starts in native fullscreen.
+    // Menu Navigation
+    if (state.inMenu) {
+        static bool upPressedLastFrame = false;
+        bool upPressed = glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS;
+        if (upPressed && !upPressedLastFrame) {
+            state.menuSelection = (state.menuSelection - 1 + 2) % 2;
+        }
+        upPressedLastFrame = upPressed;
+
+        static bool downPressedLastFrame = false;
+        bool downPressed = glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS;
+        if (downPressed && !downPressedLastFrame) {
+            state.menuSelection = (state.menuSelection + 1) % 2;
+        }
+        downPressedLastFrame = downPressed;
+
         return; // Don't process movement keys while in menu
     }
 
-    if (aiEnabled) return; // Don't allow manual control while AI is running
+    if (state.aiEnabled) return; // Don't allow manual control while AI is running
 
-    if (gameOver || paused) return;
+    if (state.gameOver || state.paused) return;
 
-    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS && dir != Direction::DOWN)
-        dir = Direction::UP;
-    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS && dir != Direction::UP)
-        dir = Direction::DOWN;
-    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS && dir != Direction::RIGHT)
-        dir = Direction::LEFT;
-    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS && dir != Direction::LEFT)
-        dir = Direction::RIGHT;
+    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS && state.snakeDirection != Direction::DOWN)
+        state.snakeDirection = Direction::UP;
+    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS && state.snakeDirection != Direction::UP)
+        state.snakeDirection = Direction::DOWN;
+    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS && state.snakeDirection != Direction::RIGHT)
+        state.snakeDirection = Direction::LEFT;
+    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS && state.snakeDirection != Direction::LEFT)
+        state.snakeDirection = Direction::RIGHT;
 }
 
-glm::vec2 getRandomEmptyPosition(const std::deque<glm::vec2>& snake, const std::vector<glm::vec2>& obstacles, const std::vector<glm::vec2>& otherItems) {
+glm::vec2 getRandomEmptyPosition(const GameState& state, const std::vector<glm::vec2>& extraExclusions) {
     static std::random_device rd;
     static std::mt19937 gen(rd());
     std::uniform_int_distribution<> distribX(0, GRID_WIDTH - 1);
@@ -909,71 +987,76 @@ glm::vec2 getRandomEmptyPosition(const std::deque<glm::vec2>& snake, const std::
         collision = false;
         pos = {distribX(gen), distribY(gen)};
         
-        for (const auto& s : snake) if (pos == s) { collision = true; break; }
+        for (const auto& s : state.snake) if (pos == s) { collision = true; break; }
         if (collision) continue;
-        for (const auto& o : obstacles) if (pos == o) { collision = true; break; }
+        for (const auto& o : state.obstacles) if (pos == o) { collision = true; break; }
         if (collision) continue;
-        for (const auto& item : otherItems) if (pos == item) { collision = true; break; }
+        for (const auto& item : extraExclusions) if (pos == item) { collision = true; break; }
 
     } while (collision);
     return pos;
 }
 
-void generateNewFood(glm::vec2& food, const std::deque<glm::vec2>& snake, const std::vector<glm::vec2>& obstacles, const Banana& b, const GoldenApple& g) {
+void generateNewFood(GameState& state) {
     std::vector<glm::vec2> others;
-    if (b.active) others.push_back(b.pos);
-    if (g.active) others.push_back(g.pos);
-    food = getRandomEmptyPosition(snake, obstacles, others);
+    if (state.banana.active) others.push_back(state.banana.pos);
+    if (state.goldenApple.active) others.push_back(state.goldenApple.pos);
+    state.food = getRandomEmptyPosition(state, others);
 }
 
-void generateObstacle(std::vector<glm::vec2>& obstacles, const std::deque<glm::vec2>& snake, const glm::vec2& food, const Banana& b, const GoldenApple& g) {
-    std::vector<glm::vec2> others = {food};
-    if (b.active) others.push_back(b.pos);
-    if (g.active) others.push_back(g.pos);
-    obstacles.push_back(getRandomEmptyPosition(snake, obstacles, others));
+void generateObstacle(GameState& state) {
+    std::vector<glm::vec2> others = {state.food};
+    if (state.banana.active) others.push_back(state.banana.pos);
+    if (state.goldenApple.active) others.push_back(state.goldenApple.pos);
+    state.obstacles.push_back(getRandomEmptyPosition(state, others));
 }
 
-void resetGame(std::deque<glm::vec2>& snake, Direction& dir, glm::vec2& food, bool& gameOver, int& score, std::vector<glm::vec2>& obstacles, float& timeBetweenUpdates, Banana& banana, float& nextBananaSpawnTime, GoldenApple& goldenApple) {
+void resetGame(GameState& state) {
     spdlog::info("--- New Game Started ---");
-    snake.clear();
-    snake.push_front({GRID_WIDTH / 2, GRID_HEIGHT / 2});
-    snake.push_back({GRID_WIDTH / 2 - 1, GRID_HEIGHT / 2});
-    snake.push_back({GRID_WIDTH / 2 - 2, GRID_HEIGHT / 2});
+    state.snake.clear();
+    state.snake.push_front({GRID_WIDTH / 2, GRID_HEIGHT / 2});
+    state.snake.push_back({GRID_WIDTH / 2 - 1, GRID_HEIGHT / 2});
+    state.snake.push_back({GRID_WIDTH / 2 - 2, GRID_HEIGHT / 2});
 
-    dir = Direction::RIGHT;
-    gameOver = false;
-    score = 0;
-    obstacles.clear();
-    timeBetweenUpdates = 0.1f;
+    state.snakeDirection = Direction::RIGHT;
+    state.gameOver = false;
+    state.shouldReset = false;
+    state.paused = false;
+    state.score = 0;
+    state.obstacles.clear();
+    state.timeBetweenUpdates = 0.1f;
+    state.aiUsedThisRun = false;
+    state.highScoreChecked = false;
+    state.isNewTopScore = false;
     
     // Order matters slightly here to avoid initial collisions
-    banana.active = false;
-    goldenApple.active = false;
-    generateNewFood(food, snake, obstacles, banana, goldenApple);
-    generateBanana(banana, snake, food, obstacles, goldenApple);
-    generateGoldenApple(goldenApple, snake, food, obstacles, banana);
+    state.banana.active = false;
+    state.goldenApple.active = false;
+    generateNewFood(state);
+    generateBanana(state);
+    generateGoldenApple(state);
     
-    banana.spawnTime = static_cast<float>(glfwGetTime());
-    goldenApple.spawnTime = static_cast<float>(glfwGetTime());
-    nextBananaSpawnTime = 0.0f;
+    state.banana.spawnTime = static_cast<float>(glfwGetTime());
+    state.goldenApple.spawnTime = static_cast<float>(glfwGetTime());
+    state.nextBananaSpawnTime = 0.0f;
 }
 
-void generateBanana(Banana& banana, const std::deque<glm::vec2>& snake, const glm::vec2& food, const std::vector<glm::vec2>& obstacles, const GoldenApple& g) {
-    std::vector<glm::vec2> others = {food};
-    if (g.active) others.push_back(g.pos);
-    banana.pos = getRandomEmptyPosition(snake, obstacles, others);
-    banana.active = true;
+void generateBanana(GameState& state) {
+    std::vector<glm::vec2> others = {state.food};
+    if (state.goldenApple.active) others.push_back(state.goldenApple.pos);
+    state.banana.pos = getRandomEmptyPosition(state, others);
+    state.banana.active = true;
 }
 
-void generateGoldenApple(GoldenApple& goldenApple, const std::deque<glm::vec2>& snake, const glm::vec2& food, const std::vector<glm::vec2>& obstacles, const Banana& banana) {
-    std::vector<glm::vec2> others = {food};
-    if (banana.active) others.push_back(banana.pos);
-    goldenApple.pos = getRandomEmptyPosition(snake, obstacles, others);
-    goldenApple.active = true;
+void generateGoldenApple(GameState& state) {
+    std::vector<glm::vec2> others = {state.food};
+    if (state.banana.active) others.push_back(state.banana.pos);
+    state.goldenApple.pos = getRandomEmptyPosition(state, others);
+    state.goldenApple.active = true;
 }
 
-Direction getAIDirection(const std::deque<glm::vec2>& snake, glm::vec2 food, const std::vector<glm::vec2>& obstacles, Direction currentDir) {
-    glm::vec2 head = snake.front();
+Direction getAIDirection(const GameState& state) {
+    glm::vec2 head = state.snake.front();
     
     // Data structure for BFS nodes
     struct Node {
@@ -986,8 +1069,8 @@ Direction getAIDirection(const std::deque<glm::vec2>& snake, glm::vec2 food, con
     bool blocked[GRID_WIDTH][GRID_HEIGHT] = {};
 
     // Pre-populate the occupancy grid
-    for (const auto& s : snake) blocked[(int)s.x][(int)s.y] = true;
-    for (const auto& o : obstacles) blocked[(int)o.x][(int)o.y] = true;
+    for (const auto& s : state.snake) blocked[(int)s.x][(int)s.y] = true;
+    for (const auto& o : state.obstacles) blocked[(int)o.x][(int)o.y] = true;
 
     // Mark head as visited (it's already occupied, but we need to track it)
     blocked[(int)head.x][(int)head.y] = true;
@@ -1002,7 +1085,7 @@ Direction getAIDirection(const std::deque<glm::vec2>& snake, glm::vec2 food, con
         else if (d == Direction::RIGHT) next.x += 1;
 
         if (next.x >= 0 && next.x < GRID_WIDTH && next.y >= 0 && next.y < GRID_HEIGHT && !blocked[(int)next.x][(int)next.y]) {
-            if (next == food) return d;
+            if (next == state.food) return d;
             q.push({next, d});
             blocked[(int)next.x][(int)next.y] = true;
         }
@@ -1020,7 +1103,7 @@ Direction getAIDirection(const std::deque<glm::vec2>& snake, glm::vec2 food, con
             else if (d == Direction::LEFT) next.x -= 1;
             else if (d == Direction::RIGHT) next.x += 1;
 
-            if (next == food) return curr.firstMove;
+            if (next == state.food) return curr.firstMove;
 
             if (next.x >= 0 && next.x < GRID_WIDTH && next.y >= 0 && next.y < GRID_HEIGHT && 
                 !blocked[(int)next.x][(int)next.y]) {
@@ -1034,10 +1117,10 @@ Direction getAIDirection(const std::deque<glm::vec2>& snake, glm::vec2 food, con
     // We prioritize moves that don't lead to immediate death
     for (Direction d : dirs) {
         // Avoid 180-degree turns
-        if ((d == Direction::UP && currentDir == Direction::DOWN) ||
-            (d == Direction::DOWN && currentDir == Direction::UP) ||
-            (d == Direction::LEFT && currentDir == Direction::RIGHT) ||
-            (d == Direction::RIGHT && currentDir == Direction::LEFT)) continue;
+        if ((d == Direction::UP && state.snakeDirection == Direction::DOWN) ||
+            (d == Direction::DOWN && state.snakeDirection == Direction::UP) ||
+            (d == Direction::LEFT && state.snakeDirection == Direction::RIGHT) ||
+            (d == Direction::RIGHT && state.snakeDirection == Direction::LEFT)) continue;
 
         glm::vec2 next = head;
         if (d == Direction::UP) next.y += 1;
@@ -1048,13 +1131,13 @@ Direction getAIDirection(const std::deque<glm::vec2>& snake, glm::vec2 food, con
         // Temporary check for fallback without modifying outer blocked state
         if (next.x >= 0 && next.x < GRID_WIDTH && next.y >= 0 && next.y < GRID_HEIGHT) {
              bool isReallyOccupied = false;
-             for (const auto& s : snake) if (next == s) isReallyOccupied = true;
-             for (const auto& o : obstacles) if (next == o) isReallyOccupied = true;
+             for (const auto& s : state.snake) if (next == s) isReallyOccupied = true;
+             for (const auto& o : state.obstacles) if (next == o) isReallyOccupied = true;
              if (!isReallyOccupied) return d;
         }
     }
 
-    return currentDir;
+    return state.snakeDirection;
 }
 
 void framebuffer_size_callback(GLFWwindow* /*window*/, int width, int height)
@@ -1107,4 +1190,71 @@ void RenderText(unsigned int shader, std::string text, float x, float y, float s
     }
     glBindVertexArray(0);
     glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void updateHighScores(GameState& state) {
+    if (state.highScoreChecked || state.score <= 0) return;
+
+    bool qualifies = state.highScores.size() < 5 || state.score > state.highScores.back().score;
+    if (qualifies) {
+        state.highScores.push_back({state.score, state.aiUsedThisRun, state.obstaclesEnabled});
+        std::sort(state.highScores.begin(), state.highScores.end(), [](const HighScoreEntry& a, const HighScoreEntry& b) {
+            return a.score > b.score;
+        });
+        if (state.highScores.size() > 5) state.highScores.resize(5);
+        state.isNewTopScore = true;
+        saveHighScore(state);
+    }
+    state.highScoreChecked = true;
+}
+
+std::string getExecutableDir() {
+    char result[PATH_MAX];
+    ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
+    if (count <= 0) return ".";
+    return std::filesystem::path(std::string(result, count)).parent_path().string();
+}
+
+void loadHighScore(GameState& state) {
+    state.highScores.clear();
+    if (state.highScorePath.empty()) return;
+
+    std::ifstream file(state.highScorePath);
+    if (file.is_open()) {
+        std::string line;
+        while (std::getline(file, line)) {
+            if (line.empty()) continue;
+            HighScoreEntry entry;
+            size_t pos = line.find(':');
+            if (pos != std::string::npos) {
+                try {
+                    entry.score = std::stoi(line.substr(pos + 1));
+                } catch (...) { continue; }
+            } else continue;
+
+            if (std::getline(file, line)) {
+                entry.aiUsed = (line.find("Yes") != std::string::npos);
+            }
+            if (std::getline(file, line)) {
+                entry.obstaclesEnabled = (line.find("Yes") != std::string::npos);
+                state.highScores.push_back(entry);
+            }
+        }
+        file.close();
+    }
+}
+
+void saveHighScore(const GameState& state) {
+    if (state.highScorePath.empty()) return;
+
+    std::ofstream file(state.highScorePath);
+    if (file.is_open()) {
+        for (const auto& entry : state.highScores) {
+            file << "Score: " << entry.score << "\n";
+            file << "AI_Used: " << (entry.aiUsed ? "Yes" : "No") << "\n";
+            file << "Obstacles: " << (entry.obstaclesEnabled ? "Yes" : "No") << "\n";
+        }
+        file.close();
+    }
+    spdlog::info("High scores updated and saved.");
 }

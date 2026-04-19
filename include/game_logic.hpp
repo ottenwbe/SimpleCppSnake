@@ -52,7 +52,65 @@ private:
     std::string path;
 };
 
-struct GameState {
+class GameState {
+public:
+    GameState();
+
+    void reset();
+    void update(float currentTime);
+    void updateHighScores();
+
+    // Getters for Rendering and UI
+    float getTimeBetweenUpdates() const { return timeBetweenUpdates; }
+    const std::deque<glm::vec2>& getSnake() const { return snake; }
+    Direction getDirection() const { return snakeDirection; }
+    glm::vec2 getFood() const { return food; }
+    const std::vector<glm::vec2>& getObstacles() const { return obstacles; }
+    const Banana& getBanana() const { return banana; }
+    const GoldenApple& getGoldenApple() const { return goldenApple; }
+    bool isGameOver() const { return gameOver; }
+    bool shouldReset() const { return m_shouldReset; }
+    bool isPaused() const { return paused; }
+    bool isInMenu() const { return inMenu; }
+    bool isAIEnabled() const { return aiEnabled; }
+    int getScore() const { return score; }
+    int getMenuSelection() const { return menuSelection; }
+    bool areObstaclesEnabled() const { return obstaclesEnabled; }
+    bool isNewTopScore() const { return m_isNewTopScore; }
+    HighScoreManager& getHighScoreManager() { return highScores; }
+
+    // Mutators for Input Handling
+    void setDirection(Direction dir) { if (!paused && !gameOver) snakeDirection = dir; }
+    void setShouldReset(bool val) { m_shouldReset = val; }
+    void togglePause() { if (!gameOver && !inMenu) paused = !paused; }
+    void setInMenu(bool val) { inMenu = val; }
+    void toggleAI() { aiEnabled = !aiEnabled; }
+    void setMenuSelection(int sel) { menuSelection = sel; }
+    void toggleObstacles() { obstaclesEnabled = !obstaclesEnabled; }
+
+    Direction getAIDirection();
+
+    // Test Helpers
+    void debugSetSnake(const std::deque<glm::vec2>& s) { snake = s; }
+    void debugSetFood(glm::vec2 f) { food = f; }
+    void debugSetObstacles(const std::vector<glm::vec2>& o) { obstacles = o; }
+    void debugSetLastUpdateTime(float t) { lastUpdateTime = t; }
+    void debugSetNextBananaSpawnTime(float t) { nextBananaSpawnTime = t; }
+    void debugSetBanana(const Banana& b) { banana = b; }
+    void debugSetGoldenApple(const GoldenApple& g) { goldenApple = g; }
+    void debugSetScore(int s) { score = s; }
+    void debugSetGameOver(bool go) { gameOver = go; }
+    void debugSetHighScoreChecked(bool checked) { highScoreChecked = checked; }
+    void debugSetAiUsedThisRun(bool used) { aiUsedThisRun = used; }
+    void debugSetObstaclesEnabled(bool e) { obstaclesEnabled = e; }
+
+private:
+    glm::vec2 getRandomEmptyPosition(const std::vector<glm::vec2>& extraExclusions);
+    void generateNewFood();
+    void generateBanana();
+    void generateGoldenApple();
+    void generateObstacle();
+
     std::deque<glm::vec2> snake;
     Direction snakeDirection = Direction::RIGHT;
     glm::vec2 food;
@@ -61,7 +119,7 @@ struct GameState {
     GoldenApple goldenApple;
     float nextBananaSpawnTime = 0.0f;
     bool gameOver = false;
-    bool shouldReset = false;
+    bool m_shouldReset = false;
     bool paused = false;
     bool inMenu = true;
     bool aiEnabled = false;
@@ -73,22 +131,8 @@ struct GameState {
     int menuSelection = 0;
     bool aiUsedThisRun = false;
     bool highScoreChecked = false;
-    bool isNewTopScore = false;
-
-    void updateHighScores();
+    bool m_isNewTopScore = false;
 };
 
 // Path Utility
 std::string getExecutableDir();
-
-// Grid Logic
-glm::vec2 getRandomEmptyPosition(const GameState& state, const std::vector<glm::vec2>& extraExclusions);
-void generateNewFood(GameState& state);
-void generateBanana(GameState& state);
-void generateGoldenApple(GameState& state);
-void generateObstacle(GameState& state);
-void resetGame(GameState& state);
-
-// AI Logic
-Direction getAIDirection(const GameState& state);
-void updateGame(GameState& state, float currentTime);

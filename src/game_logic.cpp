@@ -58,13 +58,17 @@ bool HighScoreManager::update(int score, bool aiUsed, bool obstaclesEnabled) {
     return false;
 }
 
+GameState::GameState() {
+    reset();
+}
+
 void GameState::updateHighScores() {
     if (highScoreChecked || score <= 0) return;
-    isNewTopScore = highScores.update(score, aiUsedThisRun, obstaclesEnabled);
+    m_isNewTopScore = highScores.update(score, aiUsedThisRun, obstaclesEnabled);
     highScoreChecked = true;
 }
 
-glm::vec2 getRandomEmptyPosition(const GameState& state, const std::vector<glm::vec2>& extraExclusions) {
+glm::vec2 GameState::getRandomEmptyPosition(const std::vector<glm::vec2>& extraExclusions) {
     static std::random_device rd;
     static std::mt19937 gen(rd());
     std::uniform_int_distribution<> distribX(0, GRID_WIDTH - 1);
@@ -74,74 +78,74 @@ glm::vec2 getRandomEmptyPosition(const GameState& state, const std::vector<glm::
     do {
         collision = false;
         pos = {distribX(gen), distribY(gen)};
-        for (const auto& s : state.snake) if (pos == s) { collision = true; break; }
+        for (const auto& s : snake) if (pos == s) { collision = true; break; }
         if (collision) continue;
-        for (const auto& o : state.obstacles) if (pos == o) { collision = true; break; }
+        for (const auto& o : obstacles) if (pos == o) { collision = true; break; }
         if (collision) continue;
         for (const auto& item : extraExclusions) if (pos == item) { collision = true; break; }
     } while (collision);
     return pos;
 }
 
-void generateNewFood(GameState& state) {
+void GameState::generateNewFood() {
     std::vector<glm::vec2> others;
-    if (state.banana.active) others.push_back(state.banana.pos);
-    if (state.goldenApple.active) others.push_back(state.goldenApple.pos);
-    state.food = getRandomEmptyPosition(state, others);
+    if (banana.active) others.push_back(banana.pos);
+    if (goldenApple.active) others.push_back(goldenApple.pos);
+    food = getRandomEmptyPosition(others);
 }
 
-void generateBanana(GameState& state) {
-    std::vector<glm::vec2> others = {state.food};
-    if (state.goldenApple.active) others.push_back(state.goldenApple.pos);
-    state.banana.pos = getRandomEmptyPosition(state, others);
-    state.banana.active = true;
+void GameState::generateBanana() {
+    std::vector<glm::vec2> others = {food};
+    if (goldenApple.active) others.push_back(goldenApple.pos);
+    banana.pos = getRandomEmptyPosition(others);
+    banana.active = true;
 }
 
-void generateGoldenApple(GameState& state) {
-    std::vector<glm::vec2> others = {state.food};
-    if (state.banana.active) others.push_back(state.banana.pos);
-    state.goldenApple.pos = getRandomEmptyPosition(state, others);
-    state.goldenApple.active = true;
+void GameState::generateGoldenApple() {
+    std::vector<glm::vec2> others = {food};
+    if (banana.active) others.push_back(banana.pos);
+    goldenApple.pos = getRandomEmptyPosition(others);
+    goldenApple.active = true;
 }
 
-void generateObstacle(GameState& state) {
-    std::vector<glm::vec2> others = {state.food};
-    if (state.banana.active) others.push_back(state.banana.pos);
-    if (state.goldenApple.active) others.push_back(state.goldenApple.pos);
-    state.obstacles.push_back(getRandomEmptyPosition(state, others));
+void GameState::generateObstacle() {
+    std::vector<glm::vec2> others = {food};
+    if (banana.active) others.push_back(banana.pos);
+    if (goldenApple.active) others.push_back(goldenApple.pos);
+    obstacles.push_back(getRandomEmptyPosition(others));
 }
 
-void resetGame(GameState& state) {
-    state.snake.clear();
-    state.snake.push_front({GRID_WIDTH / 2, GRID_HEIGHT / 2});
-    state.snake.push_back({GRID_WIDTH / 2 - 1, GRID_HEIGHT / 2});
-    state.snake.push_back({GRID_WIDTH / 2 - 2, GRID_HEIGHT / 2});
-    state.snakeDirection = Direction::RIGHT;
-    state.gameOver = false;
-    state.shouldReset = false;
-    state.paused = false;
-    state.score = 0;
-    state.obstacles.clear();
-    state.timeBetweenUpdates = 0.1f;
-    state.lastUpdateTime = 0.0f;
-    state.aiUsedThisRun = false;
-    state.highScoreChecked = false;
-    state.isNewTopScore = false;
-    state.banana.active = false;
-    state.goldenApple.active = false;
-    generateNewFood(state);
-    generateBanana(state);
-    generateGoldenApple(state);
-    state.nextBananaSpawnTime = 0.0f;
+void GameState::reset() {
+    snake.clear();
+    snake.push_front({GRID_WIDTH / 2, GRID_HEIGHT / 2});
+    snake.push_back({GRID_WIDTH / 2 - 1, GRID_HEIGHT / 2});
+    snake.push_back({GRID_WIDTH / 2 - 2, GRID_HEIGHT / 2});
+    snakeDirection = Direction::RIGHT;
+    gameOver = false;
+    m_shouldReset = false;
+    paused = false;
+    score = 0;
+    obstacles.clear();
+    timeBetweenUpdates = 0.1f;
+    lastUpdateTime = 0.0f;
+    aiUsedThisRun = false;
+    highScoreChecked = false;
+    m_isNewTopScore = false;
+    banana.active = false;
+    goldenApple.active = false;
+    generateNewFood();
+    generateBanana();
+    generateGoldenApple();
+    nextBananaSpawnTime = 0.0f;
 }
 
-Direction getAIDirection(const GameState& state) {
-    glm::vec2 head = state.snake.front();
+Direction GameState::getAIDirection() {
+    glm::vec2 head = snake.front();
     struct Node { glm::vec2 pos; Direction firstMove; };
     std::queue<Node> q;
     bool blocked[GRID_WIDTH][GRID_HEIGHT] = {};
-    for (const auto& s : state.snake) blocked[(int)s.x][(int)s.y] = true;
-    for (const auto& o : state.obstacles) blocked[(int)o.x][(int)o.y] = true;
+    for (const auto& s : snake) blocked[(int)s.x][(int)s.y] = true;
+    for (const auto& o : obstacles) blocked[(int)o.x][(int)o.y] = true;
     blocked[(int)head.x][(int)head.y] = true;
     std::vector<Direction> dirs = {Direction::UP, Direction::DOWN, Direction::LEFT, Direction::RIGHT};
     for (Direction d : dirs) {
@@ -151,7 +155,7 @@ Direction getAIDirection(const GameState& state) {
         else if (d == Direction::LEFT) next.x -= 1;
         else if (d == Direction::RIGHT) next.x += 1;
         if (next.x >= 0 && next.x < GRID_WIDTH && next.y >= 0 && next.y < GRID_HEIGHT && !blocked[(int)next.x][(int)next.y]) {
-            if (next == state.food) return d;
+            if (next == food) return d;
             q.push({next, d});
             blocked[(int)next.x][(int)next.y] = true;
         }
@@ -164,89 +168,89 @@ Direction getAIDirection(const GameState& state) {
             else if (d == Direction::DOWN) next.y -= 1;
             else if (d == Direction::LEFT) next.x -= 1;
             else if (d == Direction::RIGHT) next.x += 1;
-            if (next == state.food) return curr.firstMove;
+            if (next == food) return curr.firstMove;
             if (next.x >= 0 && next.x < GRID_WIDTH && next.y >= 0 && next.y < GRID_HEIGHT && !blocked[(int)next.x][(int)next.y]) {
                 blocked[(int)next.x][(int)next.y] = true;
                 q.push({next, curr.firstMove});
             }
         }
     }
-    return state.snakeDirection;
+    return snakeDirection;
 }
 
-void updateGame(GameState& state, float currentTime) {
+void GameState::update(float currentTime) {
     // Handle Banana Expiry and Spawning
-    if (state.banana.active && (currentTime - state.banana.spawnTime) > 5.0f) {
-        state.banana.active = false;
-        state.nextBananaSpawnTime = currentTime + 10.0f;
+    if (banana.active && (currentTime - banana.spawnTime) > 5.0f) {
+        banana.active = false;
+        nextBananaSpawnTime = currentTime + 10.0f;
     }
 
     // Handle Golden Apple Expiry
-    if (state.goldenApple.active && (currentTime - state.goldenApple.spawnTime) > 7.0f) {
-        state.goldenApple.active = false;
+    if (goldenApple.active && (currentTime - goldenApple.spawnTime) > 7.0f) {
+        goldenApple.active = false;
     }
 
     // Fixed-timestep update
-    if (currentTime - state.lastUpdateTime >= state.timeBetweenUpdates && !state.gameOver && !state.paused && !state.inMenu)
+    if (currentTime - lastUpdateTime >= timeBetweenUpdates && !gameOver && !paused && !inMenu)
     {
-        state.lastUpdateTime = currentTime;
+        lastUpdateTime = currentTime;
 
-        if (state.aiEnabled) {
-            state.snakeDirection = getAIDirection(state);
-            state.aiUsedThisRun = true;
+        if (aiEnabled) {
+            snakeDirection = getAIDirection();
+            aiUsedThisRun = true;
         }
 
-        glm::vec2 newHead = state.snake.front();
-        if (state.snakeDirection == Direction::UP)    newHead.y += 1;
-        if (state.snakeDirection == Direction::DOWN)  newHead.y -= 1;
-        if (state.snakeDirection == Direction::LEFT)  newHead.x -= 1;
-        if (state.snakeDirection == Direction::RIGHT) newHead.x += 1;
+        glm::vec2 newHead = snake.front();
+        if (snakeDirection == Direction::UP)    newHead.y += 1;
+        if (snakeDirection == Direction::DOWN)  newHead.y -= 1;
+        if (snakeDirection == Direction::LEFT)  newHead.x -= 1;
+        if (snakeDirection == Direction::RIGHT) newHead.x += 1;
 
         // Wall collision
         if (newHead.x < 0 || newHead.x >= GRID_WIDTH || newHead.y < 0 || newHead.y >= GRID_HEIGHT) {
-            state.gameOver = true;
+            gameOver = true;
         }
 
         // Obstacle/Self collision
-        for (const auto& obs : state.obstacles) if (newHead == obs) { state.gameOver = true; break; }
-        for (size_t i = 1; i < state.snake.size(); ++i) if (newHead == state.snake[i]) { state.gameOver = true; break; }
+        for (const auto& obs : obstacles) if (newHead == obs) { gameOver = true; break; }
+        for (size_t i = 1; i < snake.size(); ++i) if (newHead == snake[i]) { gameOver = true; break; }
 
-        if (!state.gameOver) {
-            state.snake.push_front(newHead);
+        if (!gameOver) {
+            snake.push_front(newHead);
 
-            if (newHead == state.food) {
-                state.score++;
-                state.timeBetweenUpdates = std::max(0.03f, state.timeBetweenUpdates * 0.98f);
+            if (newHead == food) {
+                score++;
+                timeBetweenUpdates = std::max(0.03f, timeBetweenUpdates * 0.98f);
                 static std::default_random_engine rd(std::random_device{}());
-                if (state.obstaclesEnabled && std::uniform_real_distribution<float>(0,1)(rd) < 0.5f) generateObstacle(state);
-                generateNewFood(state);
-            } else if (state.banana.active && newHead == state.banana.pos) {
-                state.score += 2;
-                state.banana.active = false;
-                state.nextBananaSpawnTime = currentTime + 10.0f;
-                if (state.obstaclesEnabled) generateObstacle(state);
-            } else if (state.goldenApple.active && newHead == state.goldenApple.pos) {
-                state.score += 5;
-                state.goldenApple.active = false;
-                if (state.obstaclesEnabled) { generateObstacle(state); generateObstacle(state); }
+                if (obstaclesEnabled && std::uniform_real_distribution<float>(0,1)(rd) < 0.5f) generateObstacle();
+                generateNewFood();
+            } else if (banana.active && newHead == banana.pos) {
+                score += 2;
+                banana.active = false;
+                nextBananaSpawnTime = currentTime + 10.0f;
+                if (obstaclesEnabled) generateObstacle();
+            } else if (goldenApple.active && newHead == goldenApple.pos) {
+                score += 5;
+                goldenApple.active = false;
+                if (obstaclesEnabled) { generateObstacle(); generateObstacle(); }
             } else {
-                state.snake.pop_back();
+                snake.pop_back();
             }
 
             // Spawning Logic
-            if (!state.banana.active && currentTime >= state.nextBananaSpawnTime && !state.paused) {
-                generateBanana(state);
-                state.banana.spawnTime = currentTime;
+            if (!banana.active && currentTime >= nextBananaSpawnTime && !paused) {
+                generateBanana();
+                banana.spawnTime = currentTime;
             }
-            if (!state.goldenApple.active && !state.paused) {
+            if (!goldenApple.active && !paused) {
                 static std::default_random_engine rd(std::random_device{}());
                 if (std::uniform_real_distribution<float>(0,1)(rd) < 0.002f) {
-                    generateGoldenApple(state);
-                    state.goldenApple.spawnTime = currentTime;
+                    generateGoldenApple();
+                    goldenApple.spawnTime = currentTime;
                 }
             }
         }
     }
 
-    if (state.gameOver && !state.highScoreChecked) state.updateHighScores();
+    if (gameOver && !highScoreChecked) updateHighScores();
 }

@@ -5,6 +5,31 @@ bool isWithinBounds(glm::vec2 pos, int width, int height) {
     return pos.x >= 0 && pos.x < width && pos.y >= 0 && pos.y < height;
 }
 
+TEST_CASE("HighScoreManager Logic", "[highscore]") {
+    HighScoreManager hsm(""); // Use empty path to avoid file I/O
+
+    SECTION("Ranking and Capacity") {
+        for (int i = 1; i <= 10; ++i) {
+            hsm.update(i * 10, false, false);
+        }
+        auto entries = hsm.getEntries();
+        REQUIRE(entries.size() == 5);
+        CHECK(entries[0].score == 100);
+        CHECK(entries[4].score == 60);
+    }
+
+    SECTION("Qualifying Scores") {
+        hsm.update(50, false, false);
+        hsm.update(40, false, false);
+        hsm.update(30, false, false);
+        hsm.update(20, false, false);
+        hsm.update(15, false, false); // Fill the list to capacity (5)
+        
+        CHECK_FALSE(hsm.update(10, false, false)); // Too low
+        CHECK(hsm.update(60, false, false));      // New top
+    }
+}
+
 TEST_CASE("Basic Game Logic", "[logic]") {
     GameState state;
     state.debugSetSnake({{5, 5}, {4, 5}, {3, 5}});
@@ -20,6 +45,47 @@ TEST_CASE("Basic Game Logic", "[logic]") {
         CHECK(state.getSnake().size() == 3);
         CHECK(state.getSnake().front() == glm::vec2(15, 7));
         CHECK(state.getScore() == 0);
+    }
+
+    SECTION("Input Constraints") {
+        state.reset();
+        state.setInMenu(false);
+        
+        state.setDirection(Direction::UP);
+        CHECK(state.getDirection() == Direction::UP);
+        
+        state.togglePause();
+        state.setDirection(Direction::LEFT);
+        // Direction should not change while paused
+        CHECK(state.getDirection() == Direction::UP);
+    }
+
+    SECTION("Pause and Menu behavior") {
+        state.reset(0.0f);
+        state.setInMenu(false);
+        state.togglePause();
+        
+        glm::vec2 head = state.getSnake().front();
+        state.update(1.0f); // Fast forward time
+        CHECK(state.getSnake().front() == head); // No movement while paused
+        
+        state.togglePause();
+        state.setInMenu(true);
+        state.update(1.0f);
+        CHECK(state.getSnake().front() == head); // No movement in menu
+    }
+
+    SECTION("Update Timing") {
+        state.reset(0.0f);
+        state.setInMenu(false);
+        float step = state.getTimeBetweenUpdates();
+        
+        glm::vec2 head = state.getSnake().front();
+        state.update(step * 0.5f);
+        CHECK(state.getSnake().front() == head); // Too early
+        
+        state.update(step);
+        CHECK(state.getSnake().front() != head); // Should move
     }
 
     SECTION("Snake Movement and Growth") {
@@ -128,5 +194,14 @@ TEST_CASE("AI Pathfinding", "[ai]") {
         Direction d = state.getAIDirection();
         CHECK(d != Direction::LEFT); // Don't turn into self
         // Even if food is blocked, it should pick a safe move
+    }
+
+    SECTION("AI when trapped") {
+        // Surround head with obstacles and body
+        state.debugSetSnake({{5, 5}, {4, 5}, {3, 5}});
+        state.debugSetObstacles({{5, 6}, {6, 5}, {5, 4}}); 
+        state.setDirection(Direction::RIGHT);
+        // If trapped, return current direction and hope for the best
+        CHECK(state.getAIDirection() == Direction::RIGHT);
     }
 }

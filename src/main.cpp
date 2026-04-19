@@ -126,25 +126,31 @@ private:
     }
 
     void handleActionKey() {
-        if (m_gameState->getScene() == GameScene::Gameplay) {
+        switch (m_gameState->getScene()) {
+        case GameScene::Gameplay:
             if (m_gameState->isGameOver()) {
                 m_gameState->setShouldReset(true);
             } else {
                 m_gameState->togglePause();
             }
-        } else if (m_gameState->getScene() == GameScene::Menu) {
+            break;
+        case GameScene::Menu:
+        {
             int sel = m_gameState->getMenuSelection();
-            if (sel == 0) { m_gameState->setScene(GameScene::Gameplay); m_gameState->setShouldReset(true); }
-            else if (sel == 1) m_gameState->toggleObstacles();
-            else if (sel == 2) m_gameState->toggleAI();
-            else if (sel == 3) m_gameState->setScene(GameScene::Rules);
-            else if (sel == 4) m_gameState->setScene(GameScene::HighScores);
-            else if (sel == 5) m_gameState->setScene(GameScene::Controls);
-            else if (sel == 6) m_gameState->setScene(GameScene::Settings); // New Settings option
-            else if (sel == 7) glfwSetWindowShouldClose(m_window, true); // Quit is now 7
-        } else if (m_gameState->getScene() == GameScene::Settings) {
-            // No action key needed for settings, changes are made with left/right
-            // This block is mostly to prevent unintended actions if space/enter is pressed
+            switch (sel) {
+                case 0: m_gameState->setScene(GameScene::Gameplay); m_gameState->setShouldReset(true); break;
+                case 1: m_gameState->toggleObstacles(); break;
+                case 2: m_gameState->toggleAI(); break;
+                case 3: m_gameState->setScene(GameScene::Rules); break;
+                case 4: m_gameState->setScene(GameScene::HighScores); break;
+                case 5: m_gameState->setScene(GameScene::Controls); break;
+                case 6: m_gameState->setScene(GameScene::Settings); break;
+                case 7: glfwSetWindowShouldClose(m_window, true); break;
+            }
+            break;
+        }
+        default:
+            break;
         }
     }
 

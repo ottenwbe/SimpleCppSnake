@@ -179,11 +179,10 @@ void GameState::update(float /*currentTime*/, float deltaTime) {
     updateTimers(deltaTime);
 
     m_tickAccumulator += deltaTime;
-    while (m_tickAccumulator >= m_timeBetweenUpdates)
+    while (m_tickAccumulator >= m_timeBetweenUpdates && !m_gameOver)
     {
         m_tickAccumulator -= m_timeBetweenUpdates;
         performTick();
     }
-
     if (m_gameOver && !m_highScoreChecked) updateHighScores();
 }

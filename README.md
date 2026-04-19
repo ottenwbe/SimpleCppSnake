@@ -5,8 +5,21 @@
 <!-- Note about AI assistance -->
 > **Note:** This project was created with assistance of AI (Gemini Code Assist), with the purpose of testing some capabilites of AI assisted software development.
 
-
 A snake-like game implementation using modern C++17, OpenGL (Core Profile), GLFW, and FreeType for text rendering.
+
+**Note: This project is specifically targeted for Linux.** It utilizes Linux-specific APIs (such as `/proc/self/exe`) for path resolution and is optimized for Linux-based build environments.
+
+## Features
+
+*   **Smooth Gameplay**: Classic snake mechanics with an increasing difficulty curve.
+*   **Special Collectibles**: 
+    *   **Banana**: Worth +2 points, spawns periodically.
+    *   **Golden Apple**: Rare +5 point bonus.
+    *   **Visual Timers**: Special items feature shrinking progress bars indicating remaining time.
+*   **AI Auto-Pilot**: Built-in BFS-based pathfinding to help the snake find food automatically.
+*   **Obstacles**: Procedural obstacle generation to increase challenge.
+*   **High Score System**: Persistent Top 5 high score tracking (saved to `highscore.txt`).
+*   **Modern Graphics**: Procedural shaders for apples, bananas, and a beveled playfield.
 
 ## Prerequisites
 
@@ -15,6 +28,7 @@ To build this project, you need the following tools installed on your system:
 *   **C++ Compiler**: GCC, Clang, or MSVC (supporting C++17).
 *   **CMake**: Version 3.15 or higher.
 *   **Conan**: The C/C++ Package Manager (Install via `pip install conan`).
+*   **System Headers**: Ensure OpenGL and X11 development headers are installed (e.g., `libgl1-mesa-dev`, `libx11-dev` on Ubuntu).
 
 ## Dependencies & Attributions
 

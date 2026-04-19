@@ -56,7 +56,7 @@ void Renderer::updateProjection(int width, int height) {
 }
 
 void Renderer::render(GameState& state, int winW, int winH) {
-    float targetRatio = (float)GRID_WIDTH / (float)GRID_HEIGHT;
+    float targetRatio = (float)Config::GRID_WIDTH / (float)Config::GRID_HEIGHT;
     float windowRatio = (float)winW / (float)winH;
     int vpX, vpY, vpW, vpH;
 
@@ -151,7 +151,7 @@ void Renderer::renderGameWorld(GameState& state, int vpX, int vpY, int vpW, int 
 
     glUseProgram(m_shaderProgram);
     glBindVertexArray(m_VAO);
-    glUniform2f(m_gridCountLoc, (float)GRID_WIDTH, (float)GRID_HEIGHT);
+    glUniform2f(m_gridCountLoc, (float)Config::GRID_WIDTH, (float)Config::GRID_HEIGHT);
     glUniform1f(m_timeLeftLoc, 1.0f);
 
     // Snake
@@ -300,7 +300,7 @@ void Renderer::setupBuffers() {
     glBindBuffer(GL_ARRAY_BUFFER, m_VBO); glBufferData(GL_ARRAY_BUFFER, sizeof(sqVerts), sqVerts, GL_STATIC_DRAW);
     glEnableVertexAttribArray(0); glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
     glGenBuffers(1, &m_instanceVBO); glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
-    glBufferData(GL_ARRAY_BUFFER, GRID_WIDTH * GRID_HEIGHT * sizeof(glm::vec2), NULL, GL_STREAM_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, Config::GRID_WIDTH * Config::GRID_HEIGHT * sizeof(glm::vec2), NULL, GL_STREAM_DRAW);
     glEnableVertexAttribArray(1); glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
     glVertexAttribDivisor(1, 1);
 

@@ -10,9 +10,10 @@
 
 class InputManager {
 public:
-    void update(GLFWwindow* window) {
-        for (auto& [key, state] : m_keyStates) {
+    void update(GLFWwindow* window, const std::vector<int>& keysToTrack) {
+        for (int key : keysToTrack) {
             bool isPressed = glfwGetKey(window, key) == GLFW_PRESS;
+            auto& state = m_keyStates[key];
             state.justPressed = isPressed && !state.down;
             state.down = isPressed;
         }
@@ -109,7 +110,8 @@ private:
 
     void processInput() {
         glfwPollEvents();
-        m_input.update(m_window);
+        m_input.update(m_window, {GLFW_KEY_F11, GLFW_KEY_ESCAPE, GLFW_KEY_I, GLFW_KEY_SPACE, 
+                                  GLFW_KEY_ENTER, GLFW_KEY_UP, GLFW_KEY_DOWN, GLFW_KEY_LEFT, GLFW_KEY_RIGHT});
 
         if (m_input.isJustPressed(GLFW_KEY_F11)) toggleFullscreen();
         if (m_input.isJustPressed(GLFW_KEY_ESCAPE)) handleEscapeKey();
@@ -161,13 +163,13 @@ private:
     }
 
     void handleGameMovement() {
-        if (glfwGetKey(m_window, GLFW_KEY_UP) == GLFW_PRESS && m_gameState->getDirection() != Direction::DOWN)
+        if (m_input.isDown(GLFW_KEY_UP) && m_gameState->getDirection() != Direction::DOWN)
             m_gameState->setDirection(Direction::UP);
-        if (glfwGetKey(m_window, GLFW_KEY_DOWN) == GLFW_PRESS && m_gameState->getDirection() != Direction::UP)
+        if (m_input.isDown(GLFW_KEY_DOWN) && m_gameState->getDirection() != Direction::UP)
             m_gameState->setDirection(Direction::DOWN);
-        if (glfwGetKey(m_window, GLFW_KEY_LEFT) == GLFW_PRESS && m_gameState->getDirection() != Direction::RIGHT)
+        if (m_input.isDown(GLFW_KEY_LEFT) && m_gameState->getDirection() != Direction::RIGHT)
             m_gameState->setDirection(Direction::LEFT);
-        if (glfwGetKey(m_window, GLFW_KEY_RIGHT) == GLFW_PRESS && m_gameState->getDirection() != Direction::LEFT)
+        if (m_input.isDown(GLFW_KEY_RIGHT) && m_gameState->getDirection() != Direction::LEFT)
             m_gameState->setDirection(Direction::RIGHT);
     }
 

@@ -49,6 +49,7 @@ add_executable(${PROJECT_NAME}
     src/main.cpp 
     src/game_logic.cpp
     src/ai_pathfinder.cpp
+    src/highscore_manager.cpp
     src/renderer.cpp
 )
 
@@ -80,6 +81,7 @@ add_executable(unit_tests
     tests/test_main.cpp 
     src/game_logic.cpp
     src/ai_pathfinder.cpp
+    src/highscore_manager.cpp
 )
 target_include_directories(unit_tests PRIVATE include)
 

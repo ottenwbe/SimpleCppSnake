@@ -5,16 +5,22 @@
 #include <random>
 #include <algorithm>
 #include <string>
-#include <filesystem>
-#include <fstream>
 #include <glm/glm.hpp>
-#include <spdlog/spdlog.h>
-#include <unistd.h>
-#include <limits.h>
+#include "highscore_manager.hpp"
 
-// Constants
-const int GRID_WIDTH = 30;
-const int GRID_HEIGHT = 15;
+namespace Config {
+    constexpr int GRID_WIDTH = 30;
+    constexpr int GRID_HEIGHT = 15;
+    constexpr float INITIAL_STEP_TIME = 0.1f;
+    constexpr float MIN_STEP_TIME = 0.03f;
+    constexpr float SPEED_INCREMENT = 0.98f;
+    
+    constexpr float BANANA_TIME = 5.0f;
+    constexpr float GOLDEN_APPLE_TIME = 7.0f;
+    constexpr int SCORE_APPLE = 1;
+    constexpr int SCORE_BANANA = 2;
+    constexpr int SCORE_GOLDEN_APPLE = 5;
+}
 
 enum class Direction { UP, DOWN, LEFT, RIGHT };
 
@@ -29,7 +35,7 @@ inline glm::vec2 getDirectionOffset(Direction dir) {
 }
 
 inline bool isInsideGrid(glm::vec2 pos) {
-    return pos.x >= 0 && pos.x < GRID_WIDTH && pos.y >= 0 && pos.y < GRID_HEIGHT;
+    return pos.x >= 0 && pos.x < Config::GRID_WIDTH && pos.y >= 0 && pos.y < Config::GRID_HEIGHT;
 }
 
 struct Banana {
@@ -42,28 +48,6 @@ struct GoldenApple {
     glm::vec2 pos;
     float timeLeft = 0.0f;
     bool active = false;
-};
-
-struct HighScoreEntry {
-    int score;
-    bool aiUsed;
-    bool obstaclesEnabled;
-};
-
-class HighScoreManager {
-public:
-    HighScoreManager() = default;
-    explicit HighScoreManager(const std::string& path) : m_path(path) {}
-
-    void setPath(const std::string& p) { m_path = p; }
-    void load();
-    void save() const;
-    bool update(int score, bool aiUsed, bool obstaclesEnabled);
-    const std::vector<HighScoreEntry>& getEntries() const { return m_entries; }
-
-private:
-    std::vector<HighScoreEntry> m_entries;
-    std::string m_path;
 };
 
 class GameState {

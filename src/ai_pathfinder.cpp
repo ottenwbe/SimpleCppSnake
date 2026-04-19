@@ -9,7 +9,7 @@ Direction AIPathfinder::getNextMove(
 {
     struct Node { glm::vec2 pos; Direction firstMove; };
     std::queue<Node> q;
-    bool blocked[GRID_WIDTH][GRID_HEIGHT] = {};
+    bool blocked[Config::GRID_WIDTH][Config::GRID_HEIGHT] = {};
     
     for (const auto& s : snake) blocked[(int)s.x][(int)s.y] = true;
     for (const auto& o : obstacles) blocked[(int)o.x][(int)o.y] = true;
@@ -19,7 +19,7 @@ Direction AIPathfinder::getNextMove(
     for (Direction d : dirs) {
         glm::vec2 next = head + getDirectionOffset(d);
 
-        if (isInsideGrid(next) && !blocked[(int)next.x][(int)next.y]) {
+        if (isInsideGrid(next) && next.x >= 0 && next.x < Config::GRID_WIDTH && next.y >= 0 && next.y < Config::GRID_HEIGHT && !blocked[(int)next.x][(int)next.y]) {
             if (next == target) return d;
             q.push({next, d});
             blocked[(int)next.x][(int)next.y] = true;
@@ -31,7 +31,7 @@ Direction AIPathfinder::getNextMove(
         for (Direction d : dirs) {
             glm::vec2 next = curr.pos + getDirectionOffset(d);
             if (next == target) return curr.firstMove;
-            if (isInsideGrid(next) && !blocked[(int)next.x][(int)next.y]) {
+            if (isInsideGrid(next) && next.x >= 0 && next.x < Config::GRID_WIDTH && next.y >= 0 && next.y < Config::GRID_HEIGHT && !blocked[(int)next.x][(int)next.y]) {
                 blocked[(int)next.x][(int)next.y] = true;
                 q.push({next, curr.firstMove});
             }

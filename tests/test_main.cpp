@@ -5,9 +5,34 @@ bool isWithinBounds(glm::vec2 pos, int width, int height) {
     return pos.x >= 0 && pos.x < width && pos.y >= 0 && pos.y < height;
 }
 
+TEST_CASE("HighScoreManager Logic", "[highscore]") {
+    HighScoreManager hsm(""); // Use empty path to avoid file I/O
+
+    SECTION("Ranking and Capacity") {
+        for (int i = 1; i <= 10; ++i) {
+            hsm.update(i * 10, false, false);
+        }
+        auto entries = hsm.getEntries();
+        REQUIRE(entries.size() == 5);
+        CHECK(entries[0].score == 100);
+        CHECK(entries[4].score == 60);
+    }
+
+    SECTION("Qualifying Scores") {
+        hsm.update(50, false, false);
+        hsm.update(40, false, false);
+        hsm.update(30, false, false);
+        hsm.update(20, false, false);
+        hsm.update(15, false, false); // Fill the list to capacity (5)
+        
+        CHECK_FALSE(hsm.update(10, false, false)); // Too low
+        CHECK(hsm.update(60, false, false));      // New top
+    }
+}
+
 TEST_CASE("Basic Game Logic", "[logic]") {
     GameState state;
-    state.snake = {{5, 5}, {4, 5}, {3, 5}};
+    state.debugSetSnake({{5, 5}, {4, 5}, {3, 5}});
     
     SECTION("Boundary Checks") {
         CHECK(isWithinBounds({0,0}, 30, 15));
@@ -16,122 +41,167 @@ TEST_CASE("Basic Game Logic", "[logic]") {
     }
 
     SECTION("Snake Initialization") {
-        resetGame(state);
-        CHECK(state.snake.size() == 3);
-        CHECK(state.snake.front() == glm::vec2(15, 7));
-        CHECK(state.score == 0);
+        state.reset();
+        CHECK(state.getSnake().size() == 3);
+        CHECK(state.getSnake().front() == glm::vec2(15, 7));
+        CHECK(state.getScore() == 0);
+    }
+
+    SECTION("Input Constraints") {
+        state.reset();
+        state.setInMenu(false);
+        
+        state.setDirection(Direction::UP);
+        CHECK(state.getDirection() == Direction::UP);
+        
+        state.togglePause();
+        state.setDirection(Direction::LEFT);
+        // Direction should not change while paused
+        CHECK(state.getDirection() == Direction::UP);
+    }
+
+    SECTION("Pause and Menu behavior") {
+        state.reset(0.0f);
+        state.setInMenu(false);
+        state.togglePause();
+        
+        glm::vec2 head = state.getSnake().front();
+        state.update(1.0f, 1.0f); // Fast forward time
+        CHECK(state.getSnake().front() == head); // No movement while paused
+        
+        state.togglePause();
+        state.setInMenu(true);
+        state.update(1.0f, 1.0f);
+        CHECK(state.getSnake().front() == head); // No movement in menu
+    }
+
+    SECTION("Update Timing") {
+        state.reset(0.0f);
+        state.setInMenu(false);
+        float step = state.getTimeBetweenUpdates();
+        
+        glm::vec2 head = state.getSnake().front();
+        state.update(step * 0.5f, step * 0.5f);
+        CHECK(state.getSnake().front() == head); // Too early
+        
+        state.update(step, step * 0.5f);
+        CHECK(state.getSnake().front() != head); // Should move
     }
 
     SECTION("Snake Movement and Growth") {
-        resetGame(state);
-        state.inMenu = false;
-        state.paused = false;
-        state.snakeDirection = Direction::RIGHT;
-        state.lastUpdateTime = 0.0f;
-        state.banana.active = false;      // Ensure no interference
-        state.goldenApple.active = false;
-        state.nextBananaSpawnTime = 100.0f; // Prevent respawn
-        float tick = state.timeBetweenUpdates + 0.01f;
+        state.reset();
+        state.setInMenu(false);
+        state.setDirection(Direction::RIGHT);
+        state.debugSetTickAccumulator(0.0f);
+        state.debugSetBananaSpawnTimer(100.0f); // Prevent respawn
+        float tick = state.getTimeBetweenUpdates() + 0.01f;
 
         // Normal Movement
-        size_t initialSize = state.snake.size();
-        state.food = {0, 0}; // Move food away
-        updateGame(state, tick);
-        CHECK(state.snake.front() == glm::vec2(16, 7));
-        CHECK(state.snake.size() == initialSize);
+        size_t initialSize = state.getSnake().size();
+        state.debugSetFood({0, 0}); // Move food away
+        state.update(tick, tick);
+        CHECK(state.getSnake().front() == glm::vec2(16, 7));
+        CHECK(state.getSnake().size() == initialSize);
 
         // Eating Food (Growth)
-        state.food = {17, 7};
-        updateGame(state, tick * 2.0f);
-        CHECK(state.snake.front() == glm::vec2(17, 7));
-        CHECK(state.snake.size() == initialSize + 1);
-        CHECK(state.score == 1);
+        state.debugSetFood({17, 7});
+        state.update(tick * 2.0f, tick);
+        CHECK(state.getSnake().front() == glm::vec2(17, 7));
+        CHECK(state.getSnake().size() == initialSize + 1);
+        CHECK(state.getScore() == 1);
     }
 
     SECTION("Bonus Item Mechanics") {
-        resetGame(state);
-        state.inMenu = false;
-        state.paused = false;
-        state.snakeDirection = Direction::RIGHT;
-        state.lastUpdateTime = 0.0f;
-        float tick = state.timeBetweenUpdates + 0.01f;
-        state.food = {0, 0}; // Move food away
-        size_t initialSize = state.snake.size();
+        state.reset();
+        state.setInMenu(false);
+        state.setDirection(Direction::RIGHT);
+        state.debugSetTickAccumulator(0.0f);
+        float tick = state.getTimeBetweenUpdates() + 0.01f;
+        state.debugSetFood({0, 0}); // Move food away
+        size_t initialSize = state.getSnake().size();
 
         // Banana Growth and Points (+2)
-        state.banana.active = true;
-        state.banana.pos = {16, 7};
-        updateGame(state, tick);
-        CHECK(state.score == 2);
-        CHECK(state.snake.size() == initialSize + 1);
+        Banana b; b.active = true; b.pos = {16, 7}; b.timeLeft = 5.0f;
+        state.debugSetBanana(b);
+        state.update(tick, tick);
+        CHECK(state.getScore() == 2);
+        CHECK(state.getSnake().size() == initialSize + 1);
 
         // Golden Apple Growth and Points (+5)
-        state.goldenApple.active = true;
-        state.goldenApple.pos = {17, 7};
-        updateGame(state, tick * 2.0f);
-        CHECK(state.score == 7); // 2 + 5
-        CHECK(state.snake.size() == initialSize + 2);
+        GoldenApple ga; ga.active = true; ga.pos = {17, 7}; ga.timeLeft = 7.0f;
+        state.debugSetGoldenApple(ga);
+        state.update(tick * 2.0f, tick);
+        CHECK(state.getScore() == 7); // 2 + 5
+        CHECK(state.getSnake().size() == initialSize + 2);
     }
 
     SECTION("Collision and Game Over") {
-        resetGame(state);
-        state.inMenu = false;
-        state.paused = false;
-        state.lastUpdateTime = 0.0f;
-        float tick = state.timeBetweenUpdates + 0.01f;
+        state.reset();
+        state.setInMenu(false);
+        state.debugSetTickAccumulator(0.0f);
+        float tick = state.getTimeBetweenUpdates() + 0.01f;
 
         // Wall Collision
-        state.snake = {{29, 7}, {28, 7}, {27, 7}};
-        state.snakeDirection = Direction::RIGHT;
-        updateGame(state, tick);
-        CHECK(state.gameOver == true);
+        state.debugSetSnake({{29, 7}, {28, 7}, {27, 7}});
+        state.setDirection(Direction::RIGHT);
+        state.update(tick, tick);
+        CHECK(state.isGameOver() == true);
 
         // Obstacle Collision
-        resetGame(state);
-        state.inMenu = false;
-        state.obstacles = {{16, 7}};
-        state.snakeDirection = Direction::RIGHT;
-        updateGame(state, tick);
-        CHECK(state.gameOver == true);
+        state.reset();
+        state.setInMenu(false);
+        state.debugSetObstacles({{16, 7}});
+        state.setDirection(Direction::RIGHT);
+        state.update(tick, tick);
+        CHECK(state.isGameOver() == true);
     }
 
     SECTION("High Score Ranking") {
-        state.highScores.clear();
-        state.highScores.push_back({10, false, true});
-        state.highScorePath = ""; // Prevent file I/O during tests
-        state.score = 20;
-        state.gameOver = true;
-        state.highScoreChecked = false;
-        state.obstaclesEnabled = true;
-        state.aiUsedThisRun = false;
+        state.getHighScoreManager() = HighScoreManager(""); // Reset and prevent file I/O during tests
+        state.getHighScoreManager().update(10, false, true);
 
-        updateHighScores(state);
-        REQUIRE(state.highScores.size() >= 1);
-        CHECK(state.highScores[0].score == 20);
-        CHECK(state.isNewTopScore == true);
+        state.debugSetScore(20);
+        state.debugSetGameOver(true);
+        state.debugSetHighScoreChecked(false);
+        state.debugSetObstaclesEnabled(true);
+        state.debugSetAiUsedThisRun(false);
+
+        state.updateHighScores();
+        REQUIRE(state.getHighScoreManager().getEntries().size() >= 1);
+        CHECK(state.getHighScoreManager().getEntries()[0].score == 20);
+        CHECK(state.isNewTopScore() == true);
     }
 }
 
 TEST_CASE("AI Pathfinding", "[ai]") {
     GameState state;
-    state.snake = {{5, 5}, {4, 5}, {3, 5}};
-    state.obstacles.clear();
+    state.debugSetSnake({{5, 5}, {4, 5}, {3, 5}});
+    state.debugSetObstacles({});
 
     SECTION("AI moves toward food - Up") {
-        state.food = {5, 6};
-        CHECK(getAIDirection(state) == Direction::UP);
+        state.debugSetFood({5, 6});
+        CHECK(state.getAIDirection() == Direction::UP);
     }
 
     SECTION("AI moves toward food - Right") {
-        state.food = {6, 5};
-        CHECK(getAIDirection(state) == Direction::RIGHT);
+        state.debugSetFood({6, 5});
+        CHECK(state.getAIDirection() == Direction::RIGHT);
     }
 
     SECTION("AI avoids obstacles") {
-        state.food = {5, 6};
-        state.obstacles.push_back({5, 6}); // Food blocked
-        Direction d = getAIDirection(state);
+        state.debugSetFood({5, 6});
+        state.debugSetObstacles({{5, 6}}); // Food blocked
+        Direction d = state.getAIDirection();
         CHECK(d != Direction::LEFT); // Don't turn into self
         // Even if food is blocked, it should pick a safe move
+    }
+
+    SECTION("AI when trapped") {
+        // Surround head with obstacles and body
+        state.debugSetSnake({{5, 5}, {4, 5}, {3, 5}});
+        state.debugSetObstacles({{5, 6}, {6, 5}, {5, 4}}); 
+        state.setDirection(Direction::RIGHT);
+        // If trapped, return current direction and hope for the best
+        CHECK(state.getAIDirection() == Direction::RIGHT);
     }
 }

@@ -8,7 +8,7 @@ BUILD_DIR="build"
 
 # Clean the build directory to resolve CMake cache path mismatches
 echo "--- Cleaning build directory ---"
-rm -rf ${BUILD_DIR} bin/
+rm -rf ${BUILD_DIR} 
 
 # Force Clang as the compiler
 export CC=clang
@@ -40,4 +40,4 @@ echo "--- Building with CMake ---"
 cmake --build ${BUILD_DIR}
 
 echo "--- Build complete! ---"
-echo "You can now run the game with: ./${BUILD_DIR}/SimpleCppSnake"
+echo "You can now run the game with: ./${BUILD_DIR}/CPPSimpleSnake"

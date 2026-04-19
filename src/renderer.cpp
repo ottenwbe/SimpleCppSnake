@@ -190,136 +190,141 @@ void Renderer::render(GameState& state, float currentTime, int winW, int winH) {
     glClear(GL_COLOR_BUFFER_BIT);
 
     if (state.isInMenu()) {
-        // Draw Menu Box
-        float boxW = 1000.0f;
-        float boxH = 800.0f;
-        glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(m_screenWidth / 2.0f, m_screenHeight / 2.0f, 0.0f));
-        model = glm::scale(model, glm::vec3(boxW / 2.0f, boxH / 2.0f, 1.0f));
-        
-        glUseProgram(m_borderShaderProgram);
-        glUniformMatrix4fv(m_borderTransformLoc, 1, GL_FALSE, glm::value_ptr(m_projection * model));
-        glUniform3f(m_borderColorLoc, 0.0f, 0.8f, 0.2f); // Green border for menu
-        glBindVertexArray(m_borderVAO);
-        glLineWidth(3.0f);
-        glDrawArrays(GL_LINE_LOOP, 0, 4);
-
-        if (state.isShowingRules()) {
-            renderTextCentered("GAME RULES", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(0.0, 0.8, 0.2));
-            renderTextCentered("1. Eat apples to grow and score points.", m_screenHeight / 2.0f + 120.0f, 0.5f, glm::vec3(1.0));
-            renderTextCentered("2. Avoid hitting walls, yourself, or obstacles.", m_screenHeight / 2.0f + 90.0f, 0.5f, glm::vec3(1.0));
-            renderTextCentered("3. Bananas (+2) and Golden Apples (+5) are timed!", m_screenHeight / 2.0f + 60.0f, 0.5f, glm::vec3(1.0));
-            renderTextCentered("4. The faster you eat, the faster the game gets.", m_screenHeight / 2.0f + 30.0f, 0.5f, glm::vec3(1.0));
-            renderTextCentered("5. AI Auto-Pilot can help, but it's not perfect.", m_screenHeight / 2.0f + 0.0f, 0.5f, glm::vec3(1.0));
-            renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 100.0f, 0.6f, glm::vec3(0.7));
-        } else if (state.isShowingHighScores()) {
-            renderTextCentered("TOP 5 HIGH SCORES", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(1.0, 0.9, 0.3));
-            const auto& entries = state.getHighScoreManager().getEntries();
-            if (entries.empty()) {
-                renderTextCentered("No scores yet. Go play!", m_screenHeight / 2.0f + 50.0f, 0.6f, glm::vec3(0.7));
-            } else {
-                for (size_t i = 0; i < entries.size(); ++i) {
-                    std::string hs = std::to_string(i + 1) + ". " + std::to_string(entries[i].score) + 
-                                     (entries[i].aiUsed ? " (AI)" : " (No AI)") + (entries[i].obstaclesEnabled ? " (Obs)" : " (No Obs)");
-                    renderTextCentered(hs, m_screenHeight / 2.0f + 110.0f - i * 40.0f, 0.6f, glm::vec3(1.0, 0.9, 0.3));
-                }
-            }
-            renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.7));
-        } else if (state.isShowingControls()) {
-            renderTextCentered("GAME CONTROLS", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(0.0, 0.8, 0.2));
-            renderTextCentered("Arrow Keys: Move Snake / Navigate Menu", m_screenHeight / 2.0f + 120.0f, 0.5f, glm::vec3(1.0));
-            renderTextCentered("Space / Enter: Select / Pause Game", m_screenHeight / 2.0f + 80.0f, 0.5f, glm::vec3(1.0));
-            renderTextCentered("Esc: Go Back / Quit", m_screenHeight / 2.0f + 40.0f, 0.5f, glm::vec3(1.0));
-            renderTextCentered("F11: Toggle Fullscreen", m_screenHeight / 2.0f + 0.0f, 0.5f, glm::vec3(1.0));
-            renderTextCentered("I: Toggle AI Auto-Pilot", m_screenHeight / 2.0f - 40.0f, 0.5f, glm::vec3(1.0));
-            
-            renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.7));
-        } else {
-            renderTextCentered("CPP SIMPLE SNAKE", m_screenHeight / 2.0f + 200.0f, 1.2f, glm::vec3(0.0, 0.8, 0.2));
-            
-            glm::vec3 startColor = (state.getMenuSelection() == 0) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-            renderTextCentered("Start Game", m_screenHeight / 2.0f - 40.0f, 1.2f, startColor);
-            glm::vec3 obsColor = (state.getMenuSelection() == 1) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-            renderTextCentered("Obstacle Spawning: " + std::string(state.areObstaclesEnabled() ? "ON" : "OFF"), m_screenHeight / 2.0f - 90.0f, 0.6f, obsColor);
-            glm::vec3 aiColor = (state.getMenuSelection() == 2) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-            renderTextCentered("AI Auto-Pilot: " + std::string(state.isAIEnabled() ? "ON" : "OFF"), m_screenHeight / 2.0f - 130.0f, 0.6f, aiColor);
-            glm::vec3 rulesColor = (state.getMenuSelection() == 3) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-            renderTextCentered("Rules", m_screenHeight / 2.0f - 175.0f, 0.8f, rulesColor);
-            glm::vec3 hsBtnColor = (state.getMenuSelection() == 4) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-            renderTextCentered("High Scores", m_screenHeight / 2.0f - 220.0f, 0.8f, hsBtnColor);
-            glm::vec3 ctrlBtnColor = (state.getMenuSelection() == 5) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-            renderTextCentered("Controls", m_screenHeight / 2.0f - 265.0f, 0.8f, ctrlBtnColor);
-        }
+        renderMenu(state);
     } else {
-        glViewport(vpX, vpY, vpW, vpH);
-        glUseProgram(m_borderShaderProgram);
+        renderGameWorld(state, vpX, vpY, vpW, vpH);
+        renderUI(state, winW, winH);
+    }
+}
+
+void Renderer::renderMenu(GameState& state) {
+    float boxW = 1000.0f, boxH = 800.0f;
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(m_screenWidth / 2.0f, m_screenHeight / 2.0f, 0.0f));
+    model = glm::scale(model, glm::vec3(boxW / 2.0f, boxH / 2.0f, 1.0f));
+    
+    glUseProgram(m_borderShaderProgram);
+    glUniformMatrix4fv(m_borderTransformLoc, 1, GL_FALSE, glm::value_ptr(m_projection * model));
+    glUniform3f(m_borderColorLoc, 0.0f, 0.8f, 0.2f);
+    glBindVertexArray(m_borderVAO);
+    glLineWidth(3.0f);
+    glDrawArrays(GL_LINE_LOOP, 0, 4);
+
+    if (state.isShowingRules()) {
+        renderTextCentered("GAME RULES", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(0.0, 0.8, 0.2));
+        renderTextCentered("1. Eat apples to grow and score points.", m_screenHeight / 2.0f + 120.0f, 0.5f, glm::vec3(1.0));
+        renderTextCentered("2. Avoid hitting walls, yourself, or obstacles.", m_screenHeight / 2.0f + 90.0f, 0.5f, glm::vec3(1.0));
+        renderTextCentered("3. Bananas (+2) and Golden Apples (+5) are timed!", m_screenHeight / 2.0f + 60.0f, 0.5f, glm::vec3(1.0));
+        renderTextCentered("4. The faster you eat, the faster the game gets.", m_screenHeight / 2.0f + 30.0f, 0.5f, glm::vec3(1.0));
+        renderTextCentered("5. AI Auto-Pilot can help, but it's not perfect.", m_screenHeight / 2.0f + 0.0f, 0.5f, glm::vec3(1.0));
+        renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 100.0f, 0.6f, glm::vec3(0.7));
+    } else if (state.isShowingHighScores()) {
+        renderTextCentered("TOP 5 HIGH SCORES", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(1.0, 0.9, 0.3));
+        const auto& entries = state.getHighScoreManager().getEntries();
+        if (entries.empty()) {
+            renderTextCentered("No scores yet. Go play!", m_screenHeight / 2.0f + 50.0f, 0.6f, glm::vec3(0.7));
+        } else {
+            for (size_t i = 0; i < entries.size(); ++i) {
+                std::string hs = std::to_string(i + 1) + ". " + std::to_string(entries[i].score) + 
+                                 (entries[i].aiUsed ? " (AI)" : " (No AI)") + (entries[i].obstaclesEnabled ? " (Obs)" : " (No Obs)");
+                renderTextCentered(hs, m_screenHeight / 2.0f + 110.0f - i * 40.0f, 0.6f, glm::vec3(1.0, 0.9, 0.3));
+            }
+        }
+        renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.7));
+    } else if (state.isShowingControls()) {
+        renderTextCentered("GAME CONTROLS", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(0.0, 0.8, 0.2));
+        renderTextCentered("Arrow Keys: Move Snake / Navigate Menu", m_screenHeight / 2.0f + 120.0f, 0.5f, glm::vec3(1.0));
+        renderTextCentered("Space / Enter: Select / Pause Game", m_screenHeight / 2.0f + 80.0f, 0.5f, glm::vec3(1.0));
+        renderTextCentered("Esc: Go Back / Quit", m_screenHeight / 2.0f + 40.0f, 0.5f, glm::vec3(1.0));
+        renderTextCentered("F11: Toggle Fullscreen", m_screenHeight / 2.0f + 0.0f, 0.5f, glm::vec3(1.0));
+        renderTextCentered("I: Toggle AI Auto-Pilot", m_screenHeight / 2.0f - 40.0f, 0.5f, glm::vec3(1.0));
+        renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.7));
+    } else {
+        renderTextCentered("CPP SIMPLE SNAKE", m_screenHeight / 2.0f + 200.0f, 1.2f, glm::vec3(0.0, 0.8, 0.2));
+        glm::vec3 startColor = (state.getMenuSelection() == 0) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
+        renderTextCentered("Start Game", m_screenHeight / 2.0f - 40.0f, 1.2f, startColor);
+        glm::vec3 obsColor = (state.getMenuSelection() == 1) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
+        renderTextCentered("Obstacle Spawning: " + std::string(state.areObstaclesEnabled() ? "ON" : "OFF"), m_screenHeight / 2.0f - 90.0f, 0.6f, obsColor);
+        glm::vec3 aiColor = (state.getMenuSelection() == 2) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
+        renderTextCentered("AI Auto-Pilot: " + std::string(state.isAIEnabled() ? "ON" : "OFF"), m_screenHeight / 2.0f - 130.0f, 0.6f, aiColor);
+        glm::vec3 rulesColor = (state.getMenuSelection() == 3) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
+        renderTextCentered("Rules", m_screenHeight / 2.0f - 175.0f, 0.8f, rulesColor);
+        glm::vec3 hsBtnColor = (state.getMenuSelection() == 4) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
+        renderTextCentered("High Scores", m_screenHeight / 2.0f - 220.0f, 0.8f, hsBtnColor);
+        glm::vec3 ctrlBtnColor = (state.getMenuSelection() == 5) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
+        renderTextCentered("Controls", m_screenHeight / 2.0f - 265.0f, 0.8f, ctrlBtnColor);
+    }
+}
+
+void Renderer::renderGameWorld(GameState& state, int vpX, int vpY, int vpW, int vpH) {
+    glViewport(vpX, vpY, vpW, vpH);
+    glUseProgram(m_borderShaderProgram);
+    glUniformMatrix4fv(m_borderTransformLoc, 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
+    glBindVertexArray(m_borderVAO);
+    glUniform3f(m_borderColorLoc, 0.5f, 0.5f, 0.5f);
+    glLineWidth(5.0f);
+    glDrawArrays(GL_LINE_LOOP, 0, 4);
+
+    glUseProgram(m_shaderProgram);
+    glBindVertexArray(m_VAO);
+    glUniform2f(m_gridCountLoc, (float)GRID_WIDTH, (float)GRID_HEIGHT);
+    glUniform1f(m_timeLeftLoc, 1.0f);
+
+    // Snake
+    glm::vec3 sColor = state.isGameOver() ? glm::vec3(0.5f, 0.0f, 0.0f) : glm::vec3(0.0f, 0.8f, 0.2f);
+    glUniform3fv(m_colorLoc, 1, glm::value_ptr(sColor));
+    glUniform1i(m_isAppleLoc, 0); glUniform1i(m_isBananaLoc, 0); glUniform1i(m_isGoldenAppleLoc, 0); glUniform1i(m_isSnakeLoc, 1);
+    glUniform1i(m_snakeDirectionLoc, static_cast<int>(state.getDirection()));
+    const auto& snake = state.getSnake();
+    std::vector<glm::vec2> snakeData(snake.begin(), snake.end());
+    glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, snakeData.size() * sizeof(glm::vec2), snakeData.data());
+    glDrawArraysInstanced(GL_TRIANGLES, 0, 6, static_cast<unsigned int>(snakeData.size()));
+    glUniform1i(m_isSnakeLoc, 0);
+
+    // Food
+    glUniform3f(m_colorLoc, 1.0f, 0.2f, 0.2f); glUniform1i(m_isAppleLoc, 1);
+    glm::vec2 fPos = state.getFood();
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), glm::value_ptr(fPos));
+    glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1); glUniform1i(m_isAppleLoc, 0);
+
+    // Obstacles
+    const auto& obstacles = state.getObstacles();
+    if (!obstacles.empty()) {
+        glUniform3f(m_colorLoc, 0.5f, 0.5f, 0.5f);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, obstacles.size() * sizeof(glm::vec2), obstacles.data());
+        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, static_cast<unsigned int>(obstacles.size()));
+    }
+
+    // Collectibles
+    const auto& banana = state.getBanana();
+    if (banana.active) {
+        glUniform3f(m_colorLoc, 1.0f, 0.9f, 0.1f); glUniform1i(m_isBananaLoc, 1);
+        glUniform1f(m_timeLeftLoc, std::max(0.0f, banana.timeLeft / 5.0f));
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), glm::value_ptr(banana.pos));
+        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1); glUniform1i(m_isBananaLoc, 0);
+    }
+    const auto& gApple = state.getGoldenApple();
+    if (gApple.active) {
+        glUniform3f(m_colorLoc, 1.0f, 0.85f, 0.0f); glUniform1i(m_isGoldenAppleLoc, 1);
+        glUniform1f(m_timeLeftLoc, std::max(0.0f, gApple.timeLeft / 7.0f));
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), glm::value_ptr(gApple.pos));
+        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1); glUniform1i(m_isGoldenAppleLoc, 0);
+    }
+}
+
+void Renderer::renderUI(GameState& state, int winW, int winH) {
+    glViewport(0, 0, winW, winH);
+    renderText("Points: " + std::to_string(state.getScore()), 20.0f, m_screenHeight - 40.0f, 0.5f, glm::vec3(1.0f));
+    
+    if (state.isAIEnabled() && !state.isGameOver())
+        renderText("AI AUTO-PILOT ENABLED [I]", m_screenWidth - 300.0f, m_screenHeight - 40.0f, 0.4f, glm::vec3(0.0f, 1.0f, 1.0f));
+
+    if (state.isPaused()) {
+        glUseProgram(m_borderShaderProgram); glBindVertexArray(m_pauseVAO);
         glUniformMatrix4fv(m_borderTransformLoc, 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
-        glBindVertexArray(m_borderVAO);
-        glUniform3f(m_borderColorLoc, 0.5f, 0.5f, 0.5f);
-        glLineWidth(5.0f);
-        glDrawArrays(GL_LINE_LOOP, 0, 4);
-
-        glUseProgram(m_shaderProgram);
-        glBindVertexArray(m_VAO);
-        glUniform2f(m_gridCountLoc, (float)GRID_WIDTH, (float)GRID_HEIGHT);
-        glUniform1f(m_timeLeftLoc, 1.0f); // Default to no timer
-
-        // Snake
-        glm::vec3 sColor = state.isGameOver() ? glm::vec3(0.5f, 0.0f, 0.0f) : glm::vec3(0.0f, 0.8f, 0.2f);
-        glUniform3fv(m_colorLoc, 1, glm::value_ptr(sColor));
-        glUniform1i(m_isAppleLoc, 0); glUniform1i(m_isBananaLoc, 0); glUniform1i(m_isGoldenAppleLoc, 0); glUniform1i(m_isSnakeLoc, 1);
-        glUniform1i(m_snakeDirectionLoc, static_cast<int>(state.getDirection()));
-        const auto& snake = state.getSnake();
-        std::vector<glm::vec2> snakeData(snake.begin(), snake.end());
-        glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, snakeData.size() * sizeof(glm::vec2), snakeData.data());
-        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, static_cast<unsigned int>(snakeData.size()));
-
-        // Food
-        glUniform3f(m_colorLoc, 1.0f, 0.2f, 0.2f); glUniform1i(m_isAppleLoc, 1); glUniform1i(m_isSnakeLoc, 0);
-        glm::vec2 fPos = state.getFood();
-        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), glm::value_ptr(fPos));
-        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1);
-        glUniform1i(m_isAppleLoc, 0);
-
-        // Obstacles
-        const auto& obstacles = state.getObstacles();
-        if (!obstacles.empty()) {
-            glUniform3f(m_colorLoc, 0.5f, 0.5f, 0.5f);
-            glBufferSubData(GL_ARRAY_BUFFER, 0, obstacles.size() * sizeof(glm::vec2), obstacles.data());
-            glDrawArraysInstanced(GL_TRIANGLES, 0, 6, static_cast<unsigned int>(obstacles.size()));
-        }
-
-        // Banana & Golden Apple
-        const auto& banana = state.getBanana();
-        if (banana.active) {
-            glUniform3f(m_colorLoc, 1.0f, 0.9f, 0.1f); glUniform1i(m_isBananaLoc, 1);
-            float t = std::max(0.0f, banana.timeLeft / 5.0f);
-            glUniform1f(m_timeLeftLoc, std::max(0.0f, t));
-            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), glm::value_ptr(banana.pos));
-            glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1); glUniform1i(m_isBananaLoc, 0); glUniform1f(m_timeLeftLoc, 1.0f);
-        }
-        const auto& gApple = state.getGoldenApple();
-        if (gApple.active) {
-            glUniform3f(m_colorLoc, 1.0f, 0.85f, 0.0f); glUniform1i(m_isGoldenAppleLoc, 1);
-            float t = std::max(0.0f, gApple.timeLeft / 7.0f);
-            glUniform1f(m_timeLeftLoc, std::max(0.0f, t));
-            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), glm::value_ptr(gApple.pos));
-            glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1); glUniform1i(m_isGoldenAppleLoc, 0); glUniform1f(m_timeLeftLoc, 1.0f);
-        }
-
-        glViewport(0, 0, winW, winH);
-        renderText("Points: " + std::to_string(state.getScore()), 20.0f, m_screenHeight - 40.0f, 0.5f, glm::vec3(1.0f));
-        
-        if (state.isAIEnabled() && !state.isGameOver())
-            renderText("AI AUTO-PILOT ENABLED [I]", m_screenWidth - 300.0f, m_screenHeight - 40.0f, 0.4f, glm::vec3(0.0f, 1.0f, 1.0f));
-
-        if (state.isPaused()) {
-            glUseProgram(m_borderShaderProgram); glBindVertexArray(m_pauseVAO);
-            glUniformMatrix4fv(m_borderTransformLoc, 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
-            glUniform3f(m_borderColorLoc, 1.0f, 1.0f, 1.0f); glDrawArrays(GL_TRIANGLES, 0, 12);
-            renderTextCentered("PAUSED", m_screenHeight / 2.0f + 120.0f, 1.0f, glm::vec3(1.0));
-            renderTextCentered("Press SPACE to Resume", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.8));
-        }
+        glUniform3f(m_borderColorLoc, 1.0f, 1.0f, 1.0f); glDrawArrays(GL_TRIANGLES, 0, 12);
+        renderTextCentered("PAUSED", m_screenHeight / 2.0f + 120.0f, 1.0f, glm::vec3(1.0));
+        renderTextCentered("Press SPACE to Resume", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.8));
     }
 
     if (state.isGameOver()) {

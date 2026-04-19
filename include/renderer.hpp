@@ -22,6 +22,10 @@ public:
     void updateProjection(int width, int height);
 
 private:
+    void renderMenu(GameState& state);
+    void renderGameWorld(GameState& state, int vpX, int vpY, int vpW, int vpH);
+    void renderUI(GameState& state, int winW, int winH);
+    
     float getTextWidth(const std::string& text, float scale);
     void renderText(const std::string& text, float x, float y, float scale, glm::vec3 color);
     void renderTextCentered(const std::string& text, float y, float scale, glm::vec3 color);

@@ -120,32 +120,40 @@ void Renderer::renderMenu(GameState& state) {
     case GameScene::Settings:
     {
         renderTextCentered("SETTINGS", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(0.0, 0.8, 0.2));
+
+        glm::vec3 speedCol = (state.getMenuSelection() == 0) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
         std::string speedText = "Initial Speed: ";
         if (state.getInitialSpeedSetting() == 0) speedText += "Easy";
         else if (state.getInitialSpeedSetting() == 1) speedText += "Medium";
         else speedText += "Hard";
-        renderTextCentered(speedText, m_screenHeight / 2.0f + 50.0f, 0.7f, glm::vec3(1.0));
-        renderTextCentered("Use LEFT/RIGHT to change", m_screenHeight / 2.0f + 0.0f, 0.5f, glm::vec3(0.7));
+        renderTextCentered(speedText, m_screenHeight / 2.0f + 50.0f, 0.7f, speedCol);
+
+        glm::vec3 obsCol = (state.getMenuSelection() == 1) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
+        renderTextCentered("Obstacle Spawning: " + std::string(state.areObstaclesEnabled() ? "ON" : "OFF"), m_screenHeight / 2.0f + 0.0f, 0.7f, obsCol);
+
+        glm::vec3 aiCol = (state.getMenuSelection() == 2) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
+        renderTextCentered("AI Auto-Pilot: " + std::string(state.isAIEnabled() ? "ON" : "OFF"), m_screenHeight / 2.0f - 50.0f, 0.7f, aiCol);
+
+        renderTextCentered("Use ARROW KEYS to adjust", m_screenHeight / 2.0f - 110.0f, 0.5f, glm::vec3(0.7));
         renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.7));
         break;
     }
     case GameScene::Menu:
     {
         renderTextCentered("VIPERPATH", m_screenHeight / 2.0f + 200.0f, 1.2f, glm::vec3(0.0, 0.8, 0.2));
-        glm::vec3 startColor = (state.getMenuSelection() == 0) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-        renderTextCentered("Start Game", m_screenHeight / 2.0f - 40.0f, 1.2f, startColor);
-        glm::vec3 obsColor = (state.getMenuSelection() == 1) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-        renderTextCentered("Obstacle Spawning: " + std::string(state.areObstaclesEnabled() ? "ON" : "OFF"), m_screenHeight / 2.0f - 90.0f, 0.6f, obsColor);
-        glm::vec3 aiColor = (state.getMenuSelection() == 2) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-        renderTextCentered("AI Auto-Pilot: " + std::string(state.isAIEnabled() ? "ON" : "OFF"), m_screenHeight / 2.0f - 130.0f, 0.6f, aiColor);
-        glm::vec3 rulesColor = (state.getMenuSelection() == 3) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-        renderTextCentered("Rules", m_screenHeight / 2.0f - 175.0f, 0.8f, rulesColor);
-        glm::vec3 hsBtnColor = (state.getMenuSelection() == 4) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-        renderTextCentered("High Scores", m_screenHeight / 2.0f - 220.0f, 0.8f, hsBtnColor);
-        glm::vec3 ctrlBtnColor = (state.getMenuSelection() == 5) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-        renderTextCentered("Controls", m_screenHeight / 2.0f - 265.0f, 0.8f, ctrlBtnColor);
-        glm::vec3 quitBtnColor = (state.getMenuSelection() == 6) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-        renderTextCentered("Quit Game", m_screenHeight / 2.0f - 310.0f, 0.8f, quitBtnColor);
+
+        glm::vec3 startColor = (state.getMenuSelection() == 0) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
+        renderTextCentered("Start Game", m_screenHeight / 2.0f + 40.0f, 1.2f, startColor);
+        glm::vec3 settingsBtnColor = (state.getMenuSelection() == 1) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
+        renderTextCentered("Settings", m_screenHeight / 2.0f - 40.0f, 0.8f, settingsBtnColor);
+        glm::vec3 rulesColor = (state.getMenuSelection() == 2) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
+        renderTextCentered("Rules", m_screenHeight / 2.0f - 85.0f, 0.8f, rulesColor);
+        glm::vec3 hsBtnColor = (state.getMenuSelection() == 3) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
+        renderTextCentered("High Scores", m_screenHeight / 2.0f - 130.0f, 0.8f, hsBtnColor);
+        glm::vec3 ctrlBtnColor = (state.getMenuSelection() == 4) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
+        renderTextCentered("Controls", m_screenHeight / 2.0f - 175.0f, 0.8f, ctrlBtnColor);
+        glm::vec3 quitBtnColor = (state.getMenuSelection() == 5) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
+        renderTextCentered("Quit Game", m_screenHeight / 2.0f - 220.0f, 0.8f, quitBtnColor);
         break;
     } // End of GameScene::Menu scope
 

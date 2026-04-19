@@ -139,14 +139,19 @@ private:
             int sel = m_gameState->getMenuSelection();
             switch (sel) {
                 case 0: m_gameState->setScene(GameScene::Gameplay); m_gameState->setShouldReset(true); break;
-                case 1: m_gameState->toggleObstacles(); break;
-                case 2: m_gameState->toggleAI(); break;
-                case 3: m_gameState->setScene(GameScene::Rules); break;
-                case 4: m_gameState->setScene(GameScene::HighScores); break;
-                case 5: m_gameState->setScene(GameScene::Controls); break;
-                case 6: m_gameState->setScene(GameScene::Settings); break;
-                case 7: glfwSetWindowShouldClose(m_window, true); break;
+                case 1: m_gameState->setScene(GameScene::Settings); m_gameState->setMenuSelection(0); break;
+                case 2: m_gameState->setScene(GameScene::Rules); break;
+                case 3: m_gameState->setScene(GameScene::HighScores); break;
+                case 4: m_gameState->setScene(GameScene::Controls); break;
+                case 5: glfwSetWindowShouldClose(m_window, true); break;
             }
+            break;
+        }
+        case GameScene::Settings:
+        {
+            int sel = m_gameState->getMenuSelection();
+            if (sel == 1) m_gameState->toggleObstacles();
+            else if (sel == 2) m_gameState->toggleAI();
             break;
         }
         default:
@@ -157,16 +162,24 @@ private:
     void handleMenuNavigation() {
         if (m_gameState->getScene() == GameScene::Menu) {
             if (m_input.isJustPressed(GLFW_KEY_UP))
-                m_gameState->setMenuSelection((m_gameState->getMenuSelection() - 1 + 8) % 8); // 8 total menu items now
+                m_gameState->setMenuSelection((m_gameState->getMenuSelection() - 1 + 6) % 6);
             if (m_input.isJustPressed(GLFW_KEY_DOWN))
-                m_gameState->setMenuSelection((m_gameState->getMenuSelection() + 1) % 8);
+                m_gameState->setMenuSelection((m_gameState->getMenuSelection() + 1) % 6);
         } else if (m_gameState->getScene() == GameScene::Settings) {
-            int currentSpeed = m_gameState->getInitialSpeedSetting();
-            if (m_input.isJustPressed(GLFW_KEY_LEFT)) {
-                m_gameState->setInitialSpeedSetting(std::max(0, currentSpeed - 1));
-            }
-            if (m_input.isJustPressed(GLFW_KEY_RIGHT)) {
-                m_gameState->setInitialSpeedSetting(std::min(2, currentSpeed + 1));
+            if (m_input.isJustPressed(GLFW_KEY_UP))
+                m_gameState->setMenuSelection((m_gameState->getMenuSelection() - 1 + 3) % 3);
+            if (m_input.isJustPressed(GLFW_KEY_DOWN))
+                m_gameState->setMenuSelection((m_gameState->getMenuSelection() + 1) % 3);
+
+            int currentSel = m_gameState->getMenuSelection();
+            if (currentSel == 0) { // Initial Speed
+                int currentSpeed = m_gameState->getInitialSpeedSetting();
+                if (m_input.isJustPressed(GLFW_KEY_LEFT)) m_gameState->setInitialSpeedSetting(std::max(0, currentSpeed - 1));
+                if (m_input.isJustPressed(GLFW_KEY_RIGHT)) m_gameState->setInitialSpeedSetting(std::min(2, currentSpeed + 1));
+            } else if (currentSel == 1) { // Obstacles
+                if (m_input.isJustPressed(GLFW_KEY_LEFT) || m_input.isJustPressed(GLFW_KEY_RIGHT)) m_gameState->toggleObstacles();
+            } else if (currentSel == 2) { // AI
+                if (m_input.isJustPressed(GLFW_KEY_LEFT) || m_input.isJustPressed(GLFW_KEY_RIGHT)) m_gameState->toggleAI();
             }
         }
     }

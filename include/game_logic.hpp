@@ -5,18 +5,39 @@
 #include <random>
 #include <algorithm>
 #include <string>
-#include <filesystem>
-#include <fstream>
 #include <glm/glm.hpp>
-#include <spdlog/spdlog.h>
-#include <unistd.h>
-#include <limits.h>
+#include "highscore_manager.hpp"
 
-// Constants
-const int GRID_WIDTH = 30;
-const int GRID_HEIGHT = 15;
+namespace Config {
+    constexpr int GRID_WIDTH = 30;
+    constexpr int GRID_HEIGHT = 15;
+    constexpr float INITIAL_STEP_TIME = 0.1f;
+    constexpr float MIN_STEP_TIME = 0.03f;
+    constexpr float SPEED_INCREMENT = 0.98f;
+    
+    constexpr float BANANA_TIME = 5.0f;
+    constexpr float GOLDEN_APPLE_TIME = 7.0f;
+    constexpr int SCORE_APPLE = 1;
+    constexpr int SCORE_BANANA = 2;
+    constexpr int SCORE_GOLDEN_APPLE = 5;
+}
 
 enum class Direction { UP, DOWN, LEFT, RIGHT };
+enum class GameScene { Menu, Rules, HighScores, Controls, Settings, Gameplay };
+
+inline glm::vec2 getDirectionOffset(Direction dir) {
+    switch (dir) {
+        case Direction::UP:    return {0, 1};
+        case Direction::DOWN:  return {0, -1};
+        case Direction::LEFT:  return {-1, 0};
+        case Direction::RIGHT: return {1, 0};
+    }
+    return {0, 0};
+}
+
+inline bool isInsideGrid(glm::vec2 pos) {
+    return pos.x >= 0 && pos.x < Config::GRID_WIDTH && pos.y >= 0 && pos.y < Config::GRID_HEIGHT;
+}
 
 struct Banana {
     glm::vec2 pos;
@@ -28,28 +49,6 @@ struct GoldenApple {
     glm::vec2 pos;
     float timeLeft = 0.0f;
     bool active = false;
-};
-
-struct HighScoreEntry {
-    int score;
-    bool aiUsed;
-    bool obstaclesEnabled;
-};
-
-class HighScoreManager {
-public:
-    HighScoreManager() = default;
-    explicit HighScoreManager(const std::string& path) : m_path(path) {}
-
-    void setPath(const std::string& p) { m_path = p; }
-    void load();
-    void save() const;
-    bool update(int score, bool aiUsed, bool obstaclesEnabled);
-    const std::vector<HighScoreEntry>& getEntries() const { return m_entries; }
-
-private:
-    std::vector<HighScoreEntry> m_entries;
-    std::string m_path;
 };
 
 class GameState {
@@ -71,10 +70,7 @@ public:
     bool isGameOver() const { return m_gameOver; }
     bool shouldReset() const { return m_shouldReset; }
     bool isPaused() const { return m_paused; }
-    bool isInMenu() const { return m_inMenu; }
-    bool isShowingRules() const { return m_showingRules; }
-    bool isShowingHighScores() const { return m_showingHighScores; }
-    bool isShowingControls() const { return m_showingControls; }
+    GameScene getScene() const { return m_currentScene; }
     bool isAIEnabled() const { return m_aiEnabled; }
     int getScore() const { return m_score; }
     int getMenuSelection() const { return m_menuSelection; }
@@ -85,17 +81,14 @@ public:
     // Mutators for Input Handling
     void setDirection(Direction dir) { if (!m_paused && !m_gameOver) m_snakeDirection = dir; }
     void setShouldReset(bool val) { m_shouldReset = val; }
-    void togglePause() { if (!m_gameOver && !m_inMenu) m_paused = !m_paused; }
-    void setInMenu(bool val) { m_inMenu = val; }
-    void setShowingRules(bool val) { m_showingRules = val; }
-    void setShowingHighScores(bool val) { m_showingHighScores = val; }
-    void setShowingControls(bool val) { m_showingControls = val; }
+    void togglePause() { if (!m_gameOver && m_currentScene == GameScene::Gameplay) m_paused = !m_paused; }
+    void setScene(GameScene scene) { m_currentScene = scene; }
     void toggleAI() { m_aiEnabled = !m_aiEnabled; }
     void setMenuSelection(int sel) { m_menuSelection = sel; }
     void toggleObstacles() { m_obstaclesEnabled = !m_obstaclesEnabled; }
 
-    Direction getAIDirection();
-
+    int getInitialSpeedSetting() const { return m_initialSpeedSetting; }
+    void setInitialSpeedSetting(int speed) { m_initialSpeedSetting = speed; }
     // Test Helpers
     void debugSetSnake(const std::deque<glm::vec2>& s) { m_snake = s; }
     void debugSetFood(glm::vec2 f) { m_food = f; }
@@ -111,6 +104,9 @@ public:
     void debugSetObstaclesEnabled(bool e) { m_obstaclesEnabled = e; }
 
 private:
+    void updateTimers(float deltaTime);
+    void performTick();
+    bool isPositionOccupied(glm::vec2 pos, const std::vector<glm::vec2>& extraExclusions = {}) const;
     glm::vec2 getRandomEmptyPosition(const std::vector<glm::vec2>& extraExclusions);
     void generateNewFood();
     void generateBanana();
@@ -127,10 +123,7 @@ private:
     bool m_gameOver = false;
     bool m_shouldReset = false;
     bool m_paused = false;
-    bool m_inMenu = true;
-    bool m_showingRules = false;
-    bool m_showingHighScores = false;
-    bool m_showingControls = false;
+    GameScene m_currentScene = GameScene::Menu;
     bool m_aiEnabled = false;
     int m_score = 0;
     float m_tickAccumulator = 0.0f;
@@ -139,8 +132,10 @@ private:
     bool m_obstaclesEnabled = true;
     int m_menuSelection = 0;
     bool m_aiUsedThisRun = false;
+    int m_initialSpeedSetting = 1; // 0: Easy, 1: Medium, 2: Hard
     bool m_highScoreChecked = false;
     bool m_isNewTopScore = false;
+    std::mt19937 m_rng;
 };
 
 // Path Utility

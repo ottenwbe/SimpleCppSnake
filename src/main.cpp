@@ -5,41 +5,21 @@
 #include <filesystem>
 #include "game_logic.hpp"
 #include "renderer.hpp"
+#include "input_manager.hpp"
 #include <glm/glm.hpp>
 
 class SnakeApplication {
 public:
     SnakeApplication() {
         spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
-        spdlog::info("Initializing CPP Simple Snake...");
-        
-        if (!glfwInit()) {
-            throw std::runtime_error("Failed to initialize GLFW");
-        }
+        spdlog::info("Initializing Viperpath...");
 
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
+        setupWindow();
 
-        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-        m_screenWidth = mode->width;
-        m_screenHeight = mode->height;
-
-        m_window = glfwCreateWindow(m_screenWidth, m_screenHeight, "CPP Simple Snake", monitor, nullptr);
-        if (!m_window) {
-            glfwTerminate();
-            throw std::runtime_error("Failed to create GLFW window");
-        }
-
-        glfwMakeContextCurrent(m_window);
-        
         if (!m_renderer.init(m_screenWidth, m_screenHeight)) {
             throw std::runtime_error("Failed to initialize Renderer");
         }
 
-        m_gameState = std::make_unique<GameState>();
         m_gameState->getHighScoreManager().setPath((std::filesystem::path(getExecutableDir()) / "highscore.txt").string());
         m_gameState->getHighScoreManager().load();
         float now = static_cast<float>(glfwGetTime());
@@ -71,16 +51,42 @@ public:
             m_gameState->update(currentTime, deltaTime);
 
             // 4. Rendering
-            updateViewportAndProjection();
-            renderFrame(currentTime);
+            int winW, winH;
+            updateViewportAndProjection(winW, winH);
+            m_renderer.render(*m_gameState, winW, winH);
 
             glfwSwapBuffers(m_window);
         }
     }
 
 private:
-    void updateViewportAndProjection() {
-        int winW, winH;
+    void setupWindow() {
+        if (!glfwInit()) throw std::runtime_error("Failed to initialize GLFW");
+
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
+
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+        m_screenWidth = mode->width;
+        m_screenHeight = mode->height;
+
+        m_window = glfwCreateWindow(m_screenWidth, m_screenHeight, "Viperpath", monitor, nullptr);
+        if (!m_window) {
+            glfwTerminate();
+            throw std::runtime_error("Failed to create GLFW window");
+        }
+
+        glfwMakeContextCurrent(m_window);
+        // VSync on for smooth movement
+        glfwSwapInterval(1);
+
+        m_gameState = std::make_unique<GameState>();
+    }
+
+    void updateViewportAndProjection(int& winW, int& winH) {
         glfwGetFramebufferSize(m_window, &winW, &winH);
         if (static_cast<unsigned int>(winW) != m_screenWidth || static_cast<unsigned int>(winH) != m_screenHeight) {
             m_screenWidth = winW;
@@ -90,38 +96,19 @@ private:
         }
     }
 
-    void renderFrame(float currentTime) {
-        int winW, winH;
-        glfwGetFramebufferSize(m_window, &winW, &winH);
-        m_renderer.render(*m_gameState, currentTime, winW, winH);
-    }
-
-    bool isKeyJustPressed(int key, bool& wasPressed) {
-        bool isPressed = glfwGetKey(m_window, key) == GLFW_PRESS;
-        bool result = isPressed && !wasPressed;
-        wasPressed = isPressed;
-        return result;
-    }
-
     void processInput() {
         glfwPollEvents();
+        m_input.update(m_window, {GLFW_KEY_F11, GLFW_KEY_ESCAPE, GLFW_KEY_I, GLFW_KEY_SPACE, 
+                                  GLFW_KEY_ENTER, GLFW_KEY_UP, GLFW_KEY_DOWN, GLFW_KEY_LEFT, GLFW_KEY_RIGHT});
 
-        // Global Controls
-        if (isKeyJustPressed(GLFW_KEY_F11, m_inputStates.f11)) toggleFullscreen();
-        
-        if (isKeyJustPressed(GLFW_KEY_ESCAPE, m_inputStates.esc)) {
-            handleEscapeKey();
-        }
+        if (m_input.isJustPressed(GLFW_KEY_F11)) toggleFullscreen(); // Global control
+        if (m_input.isJustPressed(GLFW_KEY_ESCAPE)) handleEscapeKey(); // Global control
+        if (m_input.isJustPressed(GLFW_KEY_I)) m_gameState->toggleAI();
 
-        if (isKeyJustPressed(GLFW_KEY_I, m_inputStates.i)) m_gameState->toggleAI();
-
-        // Action Key (Space/Enter)
-        bool action = (glfwGetKey(m_window, GLFW_KEY_SPACE) == GLFW_PRESS) || (glfwGetKey(m_window, GLFW_KEY_ENTER) == GLFW_PRESS);
-        if (action && !m_inputStates.action) handleActionKey();
-        m_inputStates.action = action;
+        if (m_input.isJustPressed(GLFW_KEY_SPACE) || m_input.isJustPressed(GLFW_KEY_ENTER)) handleActionKey();
 
         // Contextual Controls
-        if (m_gameState->isInMenu()) {
+        if (m_gameState->getScene() != GameScene::Gameplay) {
             handleMenuNavigation();
         } else if (!m_gameState->isAIEnabled() && !m_gameState->isGameOver() && !m_gameState->isPaused()) {
             handleGameMovement();
@@ -129,47 +116,82 @@ private:
     }
 
     void handleEscapeKey() {
-        if (m_gameState->isShowingRules() || m_gameState->isShowingHighScores() || m_gameState->isShowingControls()) {
-            m_gameState->setShowingRules(false);
-            m_gameState->setShowingHighScores(false);
-            m_gameState->setShowingControls(false);
-        } else if (m_gameState->isInMenu()) glfwSetWindowShouldClose(m_window, true);
-        else { m_gameState->setInMenu(true); m_gameState->setShouldReset(true); }
+        if (m_gameState->getScene() == GameScene::Settings ||
+            m_gameState->getScene() == GameScene::Rules ||
+            m_gameState->getScene() == GameScene::HighScores ||
+            m_gameState->getScene() == GameScene::Controls) {
+            m_gameState->setScene(GameScene::Menu);
+        } else if (m_gameState->getScene() == GameScene::Menu) glfwSetWindowShouldClose(m_window, true);
+        else { m_gameState->setScene(GameScene::Menu); m_gameState->setShouldReset(true); }
     }
 
     void handleActionKey() {
-        if (m_gameState->isInMenu()) {
-            if (m_gameState->isShowingRules() || m_gameState->isShowingHighScores() || m_gameState->isShowingControls()) return;
+        switch (m_gameState->getScene()) {
+        case GameScene::Gameplay:
+            if (m_gameState->isGameOver()) {
+                m_gameState->setShouldReset(true);
+            } else {
+                m_gameState->togglePause();
+            }
+            break;
+        case GameScene::Menu:
+        {
             int sel = m_gameState->getMenuSelection();
-            if (sel == 0) { m_gameState->setInMenu(false); m_gameState->setShouldReset(true); }
-            else if (sel == 1) m_gameState->toggleObstacles();
+            switch (sel) {
+                case 0: m_gameState->setScene(GameScene::Gameplay); m_gameState->setShouldReset(true); break;
+                case 1: m_gameState->setScene(GameScene::Settings); m_gameState->setMenuSelection(0); break;
+                case 2: m_gameState->setScene(GameScene::Rules); break;
+                case 3: m_gameState->setScene(GameScene::HighScores); break;
+                case 4: m_gameState->setScene(GameScene::Controls); break;
+                case 5: glfwSetWindowShouldClose(m_window, true); break;
+            }
+            break;
+        }
+        case GameScene::Settings:
+        {
+            int sel = m_gameState->getMenuSelection();
+            if (sel == 1) m_gameState->toggleObstacles();
             else if (sel == 2) m_gameState->toggleAI();
-            else if (sel == 3) m_gameState->setShowingRules(true);
-            else if (sel == 4) m_gameState->setShowingHighScores(true);
-            else if (sel == 5) m_gameState->setShowingControls(true);
-        } else if (m_gameState->isGameOver()) {
-            m_gameState->setShouldReset(true);
-        } else {
-            m_gameState->togglePause();
+            break;
+        }
+        default:
+            break;
         }
     }
 
     void handleMenuNavigation() {
-        if (m_gameState->isShowingRules() || m_gameState->isShowingHighScores() || m_gameState->isShowingControls()) return;
-        if (isKeyJustPressed(GLFW_KEY_UP, m_inputStates.up)) 
-            m_gameState->setMenuSelection((m_gameState->getMenuSelection() - 1 + 6) % 6);
-        if (isKeyJustPressed(GLFW_KEY_DOWN, m_inputStates.down)) 
-            m_gameState->setMenuSelection((m_gameState->getMenuSelection() + 1) % 6);
+        if (m_gameState->getScene() == GameScene::Menu) {
+            if (m_input.isJustPressed(GLFW_KEY_UP))
+                m_gameState->setMenuSelection((m_gameState->getMenuSelection() - 1 + 6) % 6);
+            if (m_input.isJustPressed(GLFW_KEY_DOWN))
+                m_gameState->setMenuSelection((m_gameState->getMenuSelection() + 1) % 6);
+        } else if (m_gameState->getScene() == GameScene::Settings) {
+            if (m_input.isJustPressed(GLFW_KEY_UP))
+                m_gameState->setMenuSelection((m_gameState->getMenuSelection() - 1 + 3) % 3);
+            if (m_input.isJustPressed(GLFW_KEY_DOWN))
+                m_gameState->setMenuSelection((m_gameState->getMenuSelection() + 1) % 3);
+
+            int currentSel = m_gameState->getMenuSelection();
+            if (currentSel == 0) { // Initial Speed
+                int currentSpeed = m_gameState->getInitialSpeedSetting();
+                if (m_input.isJustPressed(GLFW_KEY_LEFT)) m_gameState->setInitialSpeedSetting(std::max(0, currentSpeed - 1));
+                if (m_input.isJustPressed(GLFW_KEY_RIGHT)) m_gameState->setInitialSpeedSetting(std::min(2, currentSpeed + 1));
+            } else if (currentSel == 1) { // Obstacles
+                if (m_input.isJustPressed(GLFW_KEY_LEFT) || m_input.isJustPressed(GLFW_KEY_RIGHT)) m_gameState->toggleObstacles();
+            } else if (currentSel == 2) { // AI
+                if (m_input.isJustPressed(GLFW_KEY_LEFT) || m_input.isJustPressed(GLFW_KEY_RIGHT)) m_gameState->toggleAI();
+            }
+        }
     }
 
     void handleGameMovement() {
-        if (glfwGetKey(m_window, GLFW_KEY_UP) == GLFW_PRESS && m_gameState->getDirection() != Direction::DOWN)
+        if (m_input.isDown(GLFW_KEY_UP) && m_gameState->getDirection() != Direction::DOWN)
             m_gameState->setDirection(Direction::UP);
-        if (glfwGetKey(m_window, GLFW_KEY_DOWN) == GLFW_PRESS && m_gameState->getDirection() != Direction::UP)
+        if (m_input.isDown(GLFW_KEY_DOWN) && m_gameState->getDirection() != Direction::UP)
             m_gameState->setDirection(Direction::DOWN);
-        if (glfwGetKey(m_window, GLFW_KEY_LEFT) == GLFW_PRESS && m_gameState->getDirection() != Direction::RIGHT)
+        if (m_input.isDown(GLFW_KEY_LEFT) && m_gameState->getDirection() != Direction::RIGHT)
             m_gameState->setDirection(Direction::LEFT);
-        if (glfwGetKey(m_window, GLFW_KEY_RIGHT) == GLFW_PRESS && m_gameState->getDirection() != Direction::LEFT)
+        if (m_input.isDown(GLFW_KEY_RIGHT) && m_gameState->getDirection() != Direction::LEFT)
             m_gameState->setDirection(Direction::RIGHT);
     }
 
@@ -192,13 +214,10 @@ private:
     std::unique_ptr<GameState> m_gameState;
     unsigned int m_screenWidth, m_screenHeight;
     float m_lastFrameTime = 0.0f;
+    InputManager m_input;
 
     bool m_isFullscreen = true;
     glm::ivec2 m_windowedPos{100, 100}, m_windowedSize{1280, 720};
-
-    struct {
-        bool f11 = false, esc = false, i = false, action = false, up = false, down = false;
-    } m_inputStates;
 };
 
 int main() {

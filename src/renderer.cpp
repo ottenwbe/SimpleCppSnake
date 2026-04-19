@@ -9,124 +9,7 @@
 #include <algorithm>
 
 #include "renderer.hpp"
-
-static const char *vertexShaderSource = R"glsl(
-    #version 330 core
-    layout (location = 0) in vec2 aPos;
-    layout (location = 1) in vec2 gridPos;
-    uniform vec2 gridCount;
-    out vec2 TexCoord;
-    flat out int InstanceID;
-    void main()
-    {
-       TexCoord = aPos;
-       InstanceID = gl_InstanceID;
-       vec2 scale = vec2(2.0 / gridCount.x, 2.0 / gridCount.y);
-       vec2 offset = (gridPos / gridCount) * 2.0 - 1.0;
-       vec2 finalPos = aPos * scale + offset;
-       gl_Position = vec4(finalPos * 0.99, 0.0, 1.0);
-    }
-)glsl";
-
-static const char *fragmentShaderSource = R"glsl(
-    #version 330 core
-    out vec4 FragColor;
-    in vec2 TexCoord;
-    flat in int InstanceID;
-    uniform vec3 objectColor;
-    uniform bool isApple;
-    uniform bool isBanana;
-    uniform bool isGoldenApple;
-    uniform bool isSnake;
-    uniform int snakeDirection;
-    uniform float timeLeft;
-
-    void main()
-    {
-       vec2 p = TexCoord * 2.0 - 1.0;
-
-       if (timeLeft < 1.0 && timeLeft > 0.0) {
-           if (TexCoord.y < 0.1 && TexCoord.x > 0.1 && TexCoord.x < 0.9) {
-               float barX = (TexCoord.x - 0.1) / 0.8;
-               FragColor = (barX < timeLeft) ? vec4(0.0, 1.0, 0.0, 1.0) : vec4(0.3, 0.3, 0.3, 1.0);
-               return;
-           }
-       }
-
-       if (isApple || isGoldenApple) {
-           float appleDist = length(vec2(p.x, p.y + 0.1 - 0.2 * abs(p.x)));
-           if (appleDist < 0.7) {
-               vec3 baseColor = isApple ? vec3(1.0, 0.0, 0.0) : vec3(1.0, 0.85, 0.0);
-               vec2 lightPos = vec2(-0.3, 0.3);
-               float highlight = pow(max(1.0 - distance(p, lightPos), 0.0), isApple ? 8.0 : 12.0);
-               FragColor = vec4(baseColor + vec3(1.0) * highlight * 0.8, 1.0);
-           } else if (p.y > 0.4 && p.y < 0.8 && abs(p.x) < 0.05) {
-               FragColor = isApple ? vec4(0.0, 0.8, 0.0, 1.0) : vec4(0.4, 0.2, 0.0, 1.0);
-           } else discard;
-       } else if (isBanana) {
-            vec2 q = p; q.x += 0.45 * (q.y * q.y - 0.7);
-            float bananaDist = length(vec2(q.x * 2.8, q.y * 0.9)) - 0.75;
-            if (bananaDist < 0.0) {
-                vec3 bananaColor = mix(vec3(1.0, 0.95, 0.2), vec3(0.9, 0.8, 0.1), 1.0 - max(dot(normalize(vec3(p, 0.5)), vec3(0,0,1)), 0.0));
-                float highlight = pow(max(1.0 - distance(p, vec2(-0.3, 0.4)), 0.0), 10.0);
-                FragColor = vec4(bananaColor + vec3(0.5) * highlight, 1.0);
-            } else if (abs(p.y) > 0.6 && abs(q.x * 2.8) < 0.25) FragColor = vec4(0.2, 0.12, 0.05, 1.0);
-            else discard;
-       } else if (isSnake) {
-           float dist = length(p);
-           if (dist > 1.0) discard;
-           else {
-               float highlight = pow(max(1.0 - distance(p, vec2(-0.5, 0.5)), 0.0), 2.0);
-               vec3 finalColor = objectColor * (0.4 + (1.0 - dist) * 0.6) + vec3(1.0) * highlight * 0.3;
-               if (InstanceID == 0) {
-                   vec2 rotP = p;
-                   if (snakeDirection == 1) rotP = -p; 
-                   else if (snakeDirection == 2) rotP = vec2(p.y, -p.x);
-                   else if (snakeDirection == 3) rotP = vec2(-p.y, p.x);
-                   if (length(rotP - vec2(-0.35, 0.4)) < 0.25 || length(rotP - vec2(0.35, 0.4)) < 0.25) {
-                       finalColor = vec3(1.0);
-                       if (length(rotP - vec2(-0.35, 0.5)) < 0.1 || length(rotP - vec2(0.35, 0.5)) < 0.1) finalColor = vec3(0.0);
-                   }
-               }
-               FragColor = vec4(finalColor, 1.0);
-           }
-       } else {
-           float bevel = smoothstep(0.0, 0.15, min(1.0 - abs(p.x), 1.0 - abs(p.y)));
-           FragColor = vec4(objectColor * (0.5 + 0.5 * bevel), 1.0);
-       }
-    }
-)glsl";
-
-static const char *borderVertexShaderSource = R"glsl(
-    #version 330 core
-    layout (location = 0) in vec2 aPos;
-    uniform mat4 transform;
-    void main() { gl_Position = transform * vec4(aPos, 0.0, 1.0); }
-)glsl";
-
-static const char *borderFragmentShaderSource = R"glsl(
-    #version 330 core
-    out vec4 FragColor;
-    uniform vec3 borderColor;
-    void main() { FragColor = vec4(borderColor, 1.0); }
-)glsl";
-
-static const char *textVertexShaderSource = R"glsl(
-    #version 330 core
-    layout (location = 0) in vec4 vertex;
-    out vec2 TexCoords;
-    uniform mat4 projection;
-    void main() { gl_Position = projection * vec4(vertex.xy, 0.0, 1.0); TexCoords = vertex.zw; }
-)glsl";
-
-static const char *textFragmentShaderSource = R"glsl(
-    #version 330 core
-    in vec2 TexCoords;
-    out vec4 color;
-    uniform sampler2D text;
-    uniform vec3 textColor;
-    void main() { color = vec4(textColor, 1.0) * vec4(1.0, 1.0, 1.0, texture(text, TexCoords).r); }
-)glsl";
+#include "shaders.hpp"
 
 Renderer::Renderer() : m_screenWidth(0), m_screenHeight(0) {}
 
@@ -135,7 +18,6 @@ Renderer::~Renderer() {
     glDeleteVertexArrays(1, &m_VAO); glDeleteBuffers(1, &m_VBO); glDeleteBuffers(1, &m_instanceVBO);
     glDeleteVertexArrays(1, &m_borderVAO); glDeleteBuffers(1, &m_borderVBO);
     glDeleteVertexArrays(1, &m_pauseVAO); glDeleteBuffers(1, &m_pauseVBO);
-    glDeleteProgram(m_shaderProgram); glDeleteProgram(m_borderShaderProgram); glDeleteProgram(m_textShaderProgram);
     for (auto const& [key, val] : m_characters) glDeleteTextures(1, &val.TextureID);
 }
 
@@ -143,22 +25,9 @@ bool Renderer::init(unsigned int width, unsigned int height) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    m_shaderProgram = createShaderProgram(vertexShaderSource, fragmentShaderSource);
-    m_borderShaderProgram = createShaderProgram(borderVertexShaderSource, borderFragmentShaderSource);
-    m_textShaderProgram = createShaderProgram(textVertexShaderSource, textFragmentShaderSource);
-
-    m_gridCountLoc = glGetUniformLocation(m_shaderProgram, "gridCount");
-    m_colorLoc = glGetUniformLocation(m_shaderProgram, "objectColor");
-    m_isAppleLoc = glGetUniformLocation(m_shaderProgram, "isApple");
-    m_isBananaLoc = glGetUniformLocation(m_shaderProgram, "isBanana");
-    m_isGoldenAppleLoc = glGetUniformLocation(m_shaderProgram, "isGoldenApple");
-    m_isSnakeLoc = glGetUniformLocation(m_shaderProgram, "isSnake");
-    m_snakeDirectionLoc = glGetUniformLocation(m_shaderProgram, "snakeDirection");
-    m_timeLeftLoc = glGetUniformLocation(m_shaderProgram, "timeLeft");
-    m_borderColorLoc = glGetUniformLocation(m_borderShaderProgram, "borderColor");
-    m_borderTransformLoc = glGetUniformLocation(m_borderShaderProgram, "transform");
-    m_textColorLoc = glGetUniformLocation(m_textShaderProgram, "textColor");
-    m_textProjLoc = glGetUniformLocation(m_textShaderProgram, "projection");
+    m_gameShader = std::make_unique<Shader>(Shaders::vertexShaderSource, Shaders::fragmentShaderSource);
+    m_borderShader = std::make_unique<Shader>(Shaders::borderVertexShaderSource, Shaders::borderFragmentShaderSource);
+    m_textShader = std::make_unique<Shader>(Shaders::textVertexShaderSource, Shaders::textFragmentShaderSource);
 
     setupBuffers();
     setupFreetype();
@@ -170,156 +39,195 @@ void Renderer::updateProjection(int width, int height) {
     m_screenWidth = width;
     m_screenHeight = height;
     m_projection = glm::ortho(0.0f, static_cast<float>(width), 0.0f, static_cast<float>(height));
-}
 
-void Renderer::render(GameState& state, float currentTime, int winW, int winH) {
-    float targetRatio = (float)GRID_WIDTH / (float)GRID_HEIGHT;
-    float windowRatio = (float)winW / (float)winH;
-    int vpX, vpY, vpW, vpH;
+    // Pre-calculate viewport letterboxing
+    float targetRatio = static_cast<float>(Config::GRID_WIDTH) / static_cast<float>(Config::GRID_HEIGHT);
+    float windowRatio = static_cast<float>(width) / static_cast<float>(height);
 
     if (windowRatio > targetRatio) {
-        vpH = winH; vpW = static_cast<int>(winH * targetRatio);
-        vpX = (winW - vpW) / 2; vpY = 0;
+        m_vpH = height; 
+        m_vpW = static_cast<int>(height * targetRatio);
+        m_vpX = (width - m_vpW) / 2; 
+        m_vpY = 0;
     } else {
-        vpW = winW; vpH = static_cast<int>(vpW / targetRatio);
-        vpX = 0; vpY = (winH - vpH) / 2;
+        m_vpW = width; 
+        m_vpH = static_cast<int>(width / targetRatio);
+        m_vpX = 0; 
+        m_vpY = (height - m_vpH) / 2;
     }
+}
 
+void Renderer::render(GameState& state, int winW, int winH) {
     glViewport(0, 0, winW, winH);
     glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    if (state.isInMenu()) {
-        // Draw Menu Box
-        float boxW = 1000.0f;
-        float boxH = 800.0f;
-        glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(m_screenWidth / 2.0f, m_screenHeight / 2.0f, 0.0f));
-        model = glm::scale(model, glm::vec3(boxW / 2.0f, boxH / 2.0f, 1.0f));
-        
-        glUseProgram(m_borderShaderProgram);
-        glUniformMatrix4fv(m_borderTransformLoc, 1, GL_FALSE, glm::value_ptr(m_projection * model));
-        glUniform3f(m_borderColorLoc, 0.0f, 0.8f, 0.2f); // Green border for menu
-        glBindVertexArray(m_borderVAO);
-        glLineWidth(3.0f);
-        glDrawArrays(GL_LINE_LOOP, 0, 4);
-
-        if (state.isShowingRules()) {
-            renderTextCentered("GAME RULES", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(0.0, 0.8, 0.2));
-            renderTextCentered("1. Eat apples to grow and score points.", m_screenHeight / 2.0f + 120.0f, 0.5f, glm::vec3(1.0));
-            renderTextCentered("2. Avoid hitting walls, yourself, or obstacles.", m_screenHeight / 2.0f + 90.0f, 0.5f, glm::vec3(1.0));
-            renderTextCentered("3. Bananas (+2) and Golden Apples (+5) are timed!", m_screenHeight / 2.0f + 60.0f, 0.5f, glm::vec3(1.0));
-            renderTextCentered("4. The faster you eat, the faster the game gets.", m_screenHeight / 2.0f + 30.0f, 0.5f, glm::vec3(1.0));
-            renderTextCentered("5. AI Auto-Pilot can help, but it's not perfect.", m_screenHeight / 2.0f + 0.0f, 0.5f, glm::vec3(1.0));
-            renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 100.0f, 0.6f, glm::vec3(0.7));
-        } else if (state.isShowingHighScores()) {
-            renderTextCentered("TOP 5 HIGH SCORES", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(1.0, 0.9, 0.3));
-            const auto& entries = state.getHighScoreManager().getEntries();
-            if (entries.empty()) {
-                renderTextCentered("No scores yet. Go play!", m_screenHeight / 2.0f + 50.0f, 0.6f, glm::vec3(0.7));
-            } else {
-                for (size_t i = 0; i < entries.size(); ++i) {
-                    std::string hs = std::to_string(i + 1) + ". " + std::to_string(entries[i].score) + 
-                                     (entries[i].aiUsed ? " (AI)" : " (No AI)") + (entries[i].obstaclesEnabled ? " (Obs)" : " (No Obs)");
-                    renderTextCentered(hs, m_screenHeight / 2.0f + 110.0f - i * 40.0f, 0.6f, glm::vec3(1.0, 0.9, 0.3));
-                }
-            }
-            renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.7));
-        } else if (state.isShowingControls()) {
-            renderTextCentered("GAME CONTROLS", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(0.0, 0.8, 0.2));
-            renderTextCentered("Arrow Keys: Move Snake / Navigate Menu", m_screenHeight / 2.0f + 120.0f, 0.5f, glm::vec3(1.0));
-            renderTextCentered("Space / Enter: Select / Pause Game", m_screenHeight / 2.0f + 80.0f, 0.5f, glm::vec3(1.0));
-            renderTextCentered("Esc: Go Back / Quit", m_screenHeight / 2.0f + 40.0f, 0.5f, glm::vec3(1.0));
-            renderTextCentered("F11: Toggle Fullscreen", m_screenHeight / 2.0f + 0.0f, 0.5f, glm::vec3(1.0));
-            renderTextCentered("I: Toggle AI Auto-Pilot", m_screenHeight / 2.0f - 40.0f, 0.5f, glm::vec3(1.0));
-            
-            renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.7));
-        } else {
-            renderTextCentered("CPP SIMPLE SNAKE", m_screenHeight / 2.0f + 200.0f, 1.2f, glm::vec3(0.0, 0.8, 0.2));
-            
-            glm::vec3 startColor = (state.getMenuSelection() == 0) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-            renderTextCentered("Start Game", m_screenHeight / 2.0f - 40.0f, 1.2f, startColor);
-            glm::vec3 obsColor = (state.getMenuSelection() == 1) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-            renderTextCentered("Obstacle Spawning: " + std::string(state.areObstaclesEnabled() ? "ON" : "OFF"), m_screenHeight / 2.0f - 90.0f, 0.6f, obsColor);
-            glm::vec3 aiColor = (state.getMenuSelection() == 2) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-            renderTextCentered("AI Auto-Pilot: " + std::string(state.isAIEnabled() ? "ON" : "OFF"), m_screenHeight / 2.0f - 130.0f, 0.6f, aiColor);
-            glm::vec3 rulesColor = (state.getMenuSelection() == 3) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-            renderTextCentered("Rules", m_screenHeight / 2.0f - 175.0f, 0.8f, rulesColor);
-            glm::vec3 hsBtnColor = (state.getMenuSelection() == 4) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-            renderTextCentered("High Scores", m_screenHeight / 2.0f - 220.0f, 0.8f, hsBtnColor);
-            glm::vec3 ctrlBtnColor = (state.getMenuSelection() == 5) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-            renderTextCentered("Controls", m_screenHeight / 2.0f - 265.0f, 0.8f, ctrlBtnColor);
-        }
+    if (state.getScene() != GameScene::Gameplay) {
+        renderMenu(state);
     } else {
-        glViewport(vpX, vpY, vpW, vpH);
-        glUseProgram(m_borderShaderProgram);
-        glUniformMatrix4fv(m_borderTransformLoc, 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
-        glBindVertexArray(m_borderVAO);
-        glUniform3f(m_borderColorLoc, 0.5f, 0.5f, 0.5f);
-        glLineWidth(5.0f);
-        glDrawArrays(GL_LINE_LOOP, 0, 4);
+        renderGameWorld(state, m_vpX, m_vpY, m_vpW, m_vpH);
+        renderUI(state, winW, winH);
+    }
+}
 
-        glUseProgram(m_shaderProgram);
-        glBindVertexArray(m_VAO);
-        glUniform2f(m_gridCountLoc, (float)GRID_WIDTH, (float)GRID_HEIGHT);
-        glUniform1f(m_timeLeftLoc, 1.0f); // Default to no timer
+void Renderer::renderMenu(GameState& state) {
+    float boxW = 1000.0f, boxH = 800.0f;
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(m_screenWidth / 2.0f, m_screenHeight / 2.0f, 0.0f));
+    model = glm::scale(model, glm::vec3(boxW / 2.0f, boxH / 2.0f, 1.0f));
+    
+    m_borderShader->use();
+    m_borderShader->setMat4("transform", m_projection * model);
+    m_borderShader->setVec3("borderColor", glm::vec3(0.0f, 0.8f, 0.2f));
+    glBindVertexArray(m_borderVAO);
+    glLineWidth(3.0f);
+    glDrawArrays(GL_LINE_LOOP, 0, 4);
 
-        // Snake
-        glm::vec3 sColor = state.isGameOver() ? glm::vec3(0.5f, 0.0f, 0.0f) : glm::vec3(0.0f, 0.8f, 0.2f);
-        glUniform3fv(m_colorLoc, 1, glm::value_ptr(sColor));
-        glUniform1i(m_isAppleLoc, 0); glUniform1i(m_isBananaLoc, 0); glUniform1i(m_isGoldenAppleLoc, 0); glUniform1i(m_isSnakeLoc, 1);
-        glUniform1i(m_snakeDirectionLoc, static_cast<int>(state.getDirection()));
-        const auto& snake = state.getSnake();
-        std::vector<glm::vec2> snakeData(snake.begin(), snake.end());
-        glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, snakeData.size() * sizeof(glm::vec2), snakeData.data());
-        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, static_cast<unsigned int>(snakeData.size()));
-
-        // Food
-        glUniform3f(m_colorLoc, 1.0f, 0.2f, 0.2f); glUniform1i(m_isAppleLoc, 1); glUniform1i(m_isSnakeLoc, 0);
-        glm::vec2 fPos = state.getFood();
-        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), glm::value_ptr(fPos));
-        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1);
-        glUniform1i(m_isAppleLoc, 0);
-
-        // Obstacles
-        const auto& obstacles = state.getObstacles();
-        if (!obstacles.empty()) {
-            glUniform3f(m_colorLoc, 0.5f, 0.5f, 0.5f);
-            glBufferSubData(GL_ARRAY_BUFFER, 0, obstacles.size() * sizeof(glm::vec2), obstacles.data());
-            glDrawArraysInstanced(GL_TRIANGLES, 0, 6, static_cast<unsigned int>(obstacles.size()));
+    switch(state.getScene()) {
+    case GameScene::Rules:
+        renderTextCentered("GAME RULES", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(0.0, 0.8, 0.2));
+        renderTextCentered("1. Eat apples to grow and score points.", m_screenHeight / 2.0f + 120.0f, 0.5f, glm::vec3(1.0));
+        renderTextCentered("2. Avoid hitting walls, yourself, or obstacles.", m_screenHeight / 2.0f + 90.0f, 0.5f, glm::vec3(1.0));
+        renderTextCentered("3. Bananas (+2) and Golden Apples (+5) are timed!", m_screenHeight / 2.0f + 60.0f, 0.5f, glm::vec3(1.0));
+        renderTextCentered("4. The faster you eat, the faster the game gets.", m_screenHeight / 2.0f + 30.0f, 0.5f, glm::vec3(1.0));
+        renderTextCentered("5. AI Auto-Pilot can help, but it's not perfect.", m_screenHeight / 2.0f + 0.0f, 0.5f, glm::vec3(1.0));
+        renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 100.0f, 0.6f, glm::vec3(0.7));
+        break;
+    case GameScene::HighScores:
+        renderTextCentered("TOP 5 HIGH SCORES", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(1.0, 0.9, 0.3));
+        {
+            const auto& entries = state.getHighScoreManager().getEntries();
+        if (entries.empty()) {
+            renderTextCentered("No scores yet. Go play!", m_screenHeight / 2.0f + 50.0f, 0.6f, glm::vec3(0.7));
+        } else {
+            for (size_t i = 0; i < entries.size(); ++i) {
+                    std::string hs = std::to_string(i + 1) + ". " + std::to_string(entries[i].score) +
+                                 (entries[i].aiUsed ? " (AI)" : " (No AI)") + (entries[i].obstaclesEnabled ? " (Obs)" : " (No Obs)");
+                renderTextCentered(hs, m_screenHeight / 2.0f + 110.0f - i * 40.0f, 0.6f, glm::vec3(1.0, 0.9, 0.3));
+            }
         }
-
-        // Banana & Golden Apple
-        const auto& banana = state.getBanana();
-        if (banana.active) {
-            glUniform3f(m_colorLoc, 1.0f, 0.9f, 0.1f); glUniform1i(m_isBananaLoc, 1);
-            float t = std::max(0.0f, banana.timeLeft / 5.0f);
-            glUniform1f(m_timeLeftLoc, std::max(0.0f, t));
-            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), glm::value_ptr(banana.pos));
-            glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1); glUniform1i(m_isBananaLoc, 0); glUniform1f(m_timeLeftLoc, 1.0f);
         }
-        const auto& gApple = state.getGoldenApple();
-        if (gApple.active) {
-            glUniform3f(m_colorLoc, 1.0f, 0.85f, 0.0f); glUniform1i(m_isGoldenAppleLoc, 1);
-            float t = std::max(0.0f, gApple.timeLeft / 7.0f);
-            glUniform1f(m_timeLeftLoc, std::max(0.0f, t));
-            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), glm::value_ptr(gApple.pos));
-            glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1); glUniform1i(m_isGoldenAppleLoc, 0); glUniform1f(m_timeLeftLoc, 1.0f);
-        }
+        renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.7));
+        break;
+    case GameScene::Controls:
+        renderTextCentered("GAME CONTROLS", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(0.0, 0.8, 0.2));
+        renderTextCentered("Arrow Keys: Move Snake / Navigate Menu", m_screenHeight / 2.0f + 120.0f, 0.5f, glm::vec3(1.0));
+        renderTextCentered("Space / Enter: Select / Pause Game", m_screenHeight / 2.0f + 80.0f, 0.5f, glm::vec3(1.0));
+        renderTextCentered("Esc: Go Back / Quit", m_screenHeight / 2.0f + 40.0f, 0.5f, glm::vec3(1.0));
+        renderTextCentered("F11: Toggle Fullscreen", m_screenHeight / 2.0f + 0.0f, 0.5f, glm::vec3(1.0));
+        renderTextCentered("I: Toggle AI Auto-Pilot", m_screenHeight / 2.0f - 40.0f, 0.5f, glm::vec3(1.0));
+        renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.7));
+        break;
+    case GameScene::Settings:
+    {
+        renderTextCentered("SETTINGS", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(0.0, 0.8, 0.2));
 
-        glViewport(0, 0, winW, winH);
-        renderText("Points: " + std::to_string(state.getScore()), 20.0f, m_screenHeight - 40.0f, 0.5f, glm::vec3(1.0f));
-        
-        if (state.isAIEnabled() && !state.isGameOver())
-            renderText("AI AUTO-PILOT ENABLED [I]", m_screenWidth - 300.0f, m_screenHeight - 40.0f, 0.4f, glm::vec3(0.0f, 1.0f, 1.0f));
+        glm::vec3 speedCol = (state.getMenuSelection() == 0) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
+        std::string speedText = "Initial Speed: ";
+        if (state.getInitialSpeedSetting() == 0) speedText += "Easy";
+        else if (state.getInitialSpeedSetting() == 1) speedText += "Medium";
+        else speedText += "Hard";
+        renderTextCentered(speedText, m_screenHeight / 2.0f + 50.0f, 0.7f, speedCol);
 
-        if (state.isPaused()) {
-            glUseProgram(m_borderShaderProgram); glBindVertexArray(m_pauseVAO);
-            glUniformMatrix4fv(m_borderTransformLoc, 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
-            glUniform3f(m_borderColorLoc, 1.0f, 1.0f, 1.0f); glDrawArrays(GL_TRIANGLES, 0, 12);
-            renderTextCentered("PAUSED", m_screenHeight / 2.0f + 120.0f, 1.0f, glm::vec3(1.0));
-            renderTextCentered("Press SPACE to Resume", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.8));
-        }
+        glm::vec3 obsCol = (state.getMenuSelection() == 1) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
+        renderTextCentered("Obstacle Spawning: " + std::string(state.areObstaclesEnabled() ? "ON" : "OFF"), m_screenHeight / 2.0f + 0.0f, 0.7f, obsCol);
+
+        glm::vec3 aiCol = (state.getMenuSelection() == 2) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
+        renderTextCentered("AI Auto-Pilot: " + std::string(state.isAIEnabled() ? "ON" : "OFF"), m_screenHeight / 2.0f - 50.0f, 0.7f, aiCol);
+
+        renderTextCentered("Use ARROW KEYS to adjust", m_screenHeight / 2.0f - 110.0f, 0.5f, glm::vec3(0.7));
+        renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.7));
+        break;
+    }
+    case GameScene::Menu:
+    {
+        renderTextCentered("VIPERPATH", m_screenHeight / 2.0f + 200.0f, 1.2f, glm::vec3(0.0, 0.8, 0.2));
+
+        glm::vec3 startColor = (state.getMenuSelection() == 0) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
+        renderTextCentered("Start Game", m_screenHeight / 2.0f + 40.0f, 1.2f, startColor);
+        glm::vec3 settingsBtnColor = (state.getMenuSelection() == 1) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
+        renderTextCentered("Settings", m_screenHeight / 2.0f - 40.0f, 0.8f, settingsBtnColor);
+        glm::vec3 rulesColor = (state.getMenuSelection() == 2) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
+        renderTextCentered("Rules", m_screenHeight / 2.0f - 85.0f, 0.8f, rulesColor);
+        glm::vec3 hsBtnColor = (state.getMenuSelection() == 3) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
+        renderTextCentered("High Scores", m_screenHeight / 2.0f - 130.0f, 0.8f, hsBtnColor);
+        glm::vec3 ctrlBtnColor = (state.getMenuSelection() == 4) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
+        renderTextCentered("Controls", m_screenHeight / 2.0f - 175.0f, 0.8f, ctrlBtnColor);
+        glm::vec3 quitBtnColor = (state.getMenuSelection() == 5) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
+        renderTextCentered("Quit Game", m_screenHeight / 2.0f - 220.0f, 0.8f, quitBtnColor);
+        break;
+    } // End of GameScene::Menu scope
+
+    case GameScene::Gameplay:
+        break;
+    }
+}
+
+void Renderer::renderGameWorld(GameState& state, int vpX, int vpY, int vpW, int vpH) {
+    glViewport(vpX, vpY, vpW, vpH);
+    m_borderShader->use();
+    m_borderShader->setMat4("transform", glm::mat4(1.0f));
+    glBindVertexArray(m_borderVAO);
+    m_borderShader->setVec3("borderColor", glm::vec3(0.5f, 0.5f, 0.5f));
+    glLineWidth(5.0f);
+    glDrawArrays(GL_LINE_LOOP, 0, 4);
+
+    // Snake
+    const auto& snake = state.getSnake();
+    std::vector<glm::vec2> snakeData(snake.begin(), snake.end());
+    glm::vec3 sColor = state.isGameOver() ? glm::vec3(0.5f, 0.0f, 0.0f) : glm::vec3(0.0f, 0.8f, 0.2f);
+    drawObject(RenderType::Snake, snakeData.data(), snakeData.size(), sColor, static_cast<int>(state.getDirection()));
+
+    // Food
+    glm::vec2 fPos = state.getFood();
+    drawObject(RenderType::Apple, &fPos, 1, glm::vec3(1.0f, 0.2f, 0.2f));
+
+    // Obstacles
+    const auto& obstacles = state.getObstacles();
+    if (!obstacles.empty()) 
+        drawObject(RenderType::Obstacle, obstacles.data(), obstacles.size(), glm::vec3(0.5f, 0.5f, 0.5f));
+
+    // Collectibles
+    const auto& banana = state.getBanana();
+    if (banana.active) 
+        drawObject(RenderType::Banana, &banana.pos, 1, glm::vec3(1.0f, 0.9f, 0.1f), 0, std::max(0.0f, banana.timeLeft / Config::BANANA_TIME));
+
+    const auto& gApple = state.getGoldenApple();
+    if (gApple.active) 
+        drawObject(RenderType::GoldenApple, &gApple.pos, 1, glm::vec3(1.0f, 0.85f, 0.0f), 0, std::max(0.0f, gApple.timeLeft / Config::GOLDEN_APPLE_TIME));
+}
+
+void Renderer::drawObject(RenderType type, const glm::vec2* positions, size_t count, const glm::vec3& color, int snakeDir, float timeLeft) {
+    m_gameShader->use();
+    m_gameShader->setVec2("gridCount", glm::vec2(Config::GRID_WIDTH, Config::GRID_HEIGHT));
+    m_gameShader->setVec3("objectColor", color);
+    m_gameShader->setFloat("timeLeft", timeLeft);
+    
+    m_gameShader->setBool("isSnake",       type == RenderType::Snake);
+    m_gameShader->setBool("isApple",       type == RenderType::Apple);
+    m_gameShader->setBool("isBanana",      type == RenderType::Banana);
+    m_gameShader->setBool("isGoldenApple", type == RenderType::GoldenApple);
+    
+    if (type == RenderType::Snake) m_gameShader->setInt("snakeDirection", snakeDir);
+
+    glBindVertexArray(m_VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, count * sizeof(glm::vec2), positions);
+    glDrawArraysInstanced(GL_TRIANGLES, 0, 6, static_cast<unsigned int>(count));
+}
+
+void Renderer::renderUI(GameState& state, int winW, int winH) {
+    glViewport(0, 0, winW, winH);
+    renderText("Points: " + std::to_string(state.getScore()), 20.0f, m_screenHeight - 40.0f, 0.5f, glm::vec3(1.0f));
+    
+    if (state.isAIEnabled() && !state.isGameOver())
+        renderText("AI AUTO-PILOT ENABLED [I]", m_screenWidth - 300.0f, m_screenHeight - 40.0f, 0.4f, glm::vec3(0.0f, 1.0f, 1.0f));
+
+    if (state.isPaused()) {
+        m_borderShader->use(); glBindVertexArray(m_pauseVAO);
+        m_borderShader->setMat4("transform", glm::mat4(1.0f));
+        m_borderShader->setVec3("borderColor", glm::vec3(1.0f, 1.0f, 1.0f)); glDrawArrays(GL_TRIANGLES, 0, 12);
+        renderTextCentered("PAUSED", m_screenHeight / 2.0f + 120.0f, 1.0f, glm::vec3(1.0));
+        renderTextCentered("Press SPACE to Resume", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.8));
     }
 
     if (state.isGameOver()) {
@@ -348,9 +256,9 @@ void Renderer::renderTextCentered(const std::string& text, float y, float scale,
 }
 
 void Renderer::renderText(const std::string& text, float x, float y, float scale, glm::vec3 color) {
-    glUseProgram(m_textShaderProgram);
-    glUniform3f(m_textColorLoc, color.x, color.y, color.z);
-    glUniformMatrix4fv(m_textProjLoc, 1, GL_FALSE, glm::value_ptr(m_projection));
+    m_textShader->use();
+    m_textShader->setVec3("textColor", color);
+    m_textShader->setMat4("projection", m_projection);
     glActiveTexture(GL_TEXTURE0);
     glBindVertexArray(m_textVAO);
 
@@ -374,24 +282,13 @@ void Renderer::renderText(const std::string& text, float x, float y, float scale
     glBindVertexArray(0); glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-unsigned int Renderer::createShaderProgram(const char* vertexSource, const char* fragmentSource) {
-    unsigned int vs = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vs, 1, &vertexSource, NULL); glCompileShader(vs);
-    unsigned int fs = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fs, 1, &fragmentSource, NULL); glCompileShader(fs);
-    unsigned int prog = glCreateProgram();
-    glAttachShader(prog, vs); glAttachShader(prog, fs); glLinkProgram(prog);
-    glDeleteShader(vs); glDeleteShader(fs);
-    return prog;
-}
-
 void Renderer::setupBuffers() {
     float sqVerts[] = { 0,1, 1,0, 0,0, 0,1, 1,1, 1,0 };
     glGenVertexArrays(1, &m_VAO); glGenBuffers(1, &m_VBO); glBindVertexArray(m_VAO);
     glBindBuffer(GL_ARRAY_BUFFER, m_VBO); glBufferData(GL_ARRAY_BUFFER, sizeof(sqVerts), sqVerts, GL_STATIC_DRAW);
     glEnableVertexAttribArray(0); glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
     glGenBuffers(1, &m_instanceVBO); glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
-    glBufferData(GL_ARRAY_BUFFER, GRID_WIDTH * GRID_HEIGHT * sizeof(glm::vec2), NULL, GL_STREAM_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, Config::GRID_WIDTH * Config::GRID_HEIGHT * sizeof(glm::vec2), NULL, GL_STREAM_DRAW);
     glEnableVertexAttribArray(1); glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
     glVertexAttribDivisor(1, 1);
 

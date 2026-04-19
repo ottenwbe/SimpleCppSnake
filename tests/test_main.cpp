@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "game_logic.hpp"
+#include "ai_pathfinder.hpp"
+#include <algorithm> // For std::min/max
 
 bool isWithinBounds(glm::vec2 pos, int width, int height) {
     return pos.x >= 0 && pos.x < width && pos.y >= 0 && pos.y < height;
@@ -49,7 +51,7 @@ TEST_CASE("Basic Game Logic", "[logic]") {
 
     SECTION("Input Constraints") {
         state.reset();
-        state.setInMenu(false);
+        state.setScene(GameScene::Gameplay);
         
         state.setDirection(Direction::UP);
         CHECK(state.getDirection() == Direction::UP);
@@ -62,7 +64,7 @@ TEST_CASE("Basic Game Logic", "[logic]") {
 
     SECTION("Pause and Menu behavior") {
         state.reset(0.0f);
-        state.setInMenu(false);
+        state.setScene(GameScene::Gameplay);
         state.togglePause();
         
         glm::vec2 head = state.getSnake().front();
@@ -70,14 +72,14 @@ TEST_CASE("Basic Game Logic", "[logic]") {
         CHECK(state.getSnake().front() == head); // No movement while paused
         
         state.togglePause();
-        state.setInMenu(true);
+        state.setScene(GameScene::Menu);
         state.update(1.0f, 1.0f);
         CHECK(state.getSnake().front() == head); // No movement in menu
     }
 
     SECTION("Update Timing") {
         state.reset(0.0f);
-        state.setInMenu(false);
+        state.setScene(GameScene::Gameplay);
         float step = state.getTimeBetweenUpdates();
         
         glm::vec2 head = state.getSnake().front();
@@ -90,7 +92,7 @@ TEST_CASE("Basic Game Logic", "[logic]") {
 
     SECTION("Snake Movement and Growth") {
         state.reset();
-        state.setInMenu(false);
+        state.setScene(GameScene::Gameplay);
         state.setDirection(Direction::RIGHT);
         state.debugSetTickAccumulator(0.0f);
         state.debugSetBananaSpawnTimer(100.0f); // Prevent respawn
@@ -113,7 +115,7 @@ TEST_CASE("Basic Game Logic", "[logic]") {
 
     SECTION("Bonus Item Mechanics") {
         state.reset();
-        state.setInMenu(false);
+        state.setScene(GameScene::Gameplay);
         state.setDirection(Direction::RIGHT);
         state.debugSetTickAccumulator(0.0f);
         float tick = state.getTimeBetweenUpdates() + 0.01f;
@@ -137,7 +139,7 @@ TEST_CASE("Basic Game Logic", "[logic]") {
 
     SECTION("Collision and Game Over") {
         state.reset();
-        state.setInMenu(false);
+        state.setScene(GameScene::Gameplay);
         state.debugSetTickAccumulator(0.0f);
         float tick = state.getTimeBetweenUpdates() + 0.01f;
 
@@ -149,7 +151,7 @@ TEST_CASE("Basic Game Logic", "[logic]") {
 
         // Obstacle Collision
         state.reset();
-        state.setInMenu(false);
+        state.setScene(GameScene::Gameplay);
         state.debugSetObstacles({{16, 7}});
         state.setDirection(Direction::RIGHT);
         state.update(tick, tick);
@@ -180,18 +182,20 @@ TEST_CASE("AI Pathfinding", "[ai]") {
 
     SECTION("AI moves toward food - Up") {
         state.debugSetFood({5, 6});
-        CHECK(state.getAIDirection() == Direction::UP);
+        auto next = AIPathfinder::getNextMove(state.getSnake().front(), state.getFood(), state.getSnake(), state.getObstacles(), state.getDirection());
+        CHECK(next == Direction::UP);
     }
 
     SECTION("AI moves toward food - Right") {
         state.debugSetFood({6, 5});
-        CHECK(state.getAIDirection() == Direction::RIGHT);
+        auto next = AIPathfinder::getNextMove(state.getSnake().front(), state.getFood(), state.getSnake(), state.getObstacles(), state.getDirection());
+        CHECK(next == Direction::RIGHT);
     }
 
     SECTION("AI avoids obstacles") {
         state.debugSetFood({5, 6});
         state.debugSetObstacles({{5, 6}}); // Food blocked
-        Direction d = state.getAIDirection();
+        Direction d = AIPathfinder::getNextMove(state.getSnake().front(), state.getFood(), state.getSnake(), state.getObstacles(), state.getDirection());
         CHECK(d != Direction::LEFT); // Don't turn into self
         // Even if food is blocked, it should pick a safe move
     }
@@ -202,6 +206,28 @@ TEST_CASE("AI Pathfinding", "[ai]") {
         state.debugSetObstacles({{5, 6}, {6, 5}, {5, 4}}); 
         state.setDirection(Direction::RIGHT);
         // If trapped, return current direction and hope for the best
-        CHECK(state.getAIDirection() == Direction::RIGHT);
+        auto next = AIPathfinder::getNextMove(state.getSnake().front(), state.getFood(), state.getSnake(), state.getObstacles(), state.getDirection());
+        CHECK(next == Direction::RIGHT);
+    }
+
+    SECTION("Initial Speed Setting") {
+        state.reset();
+        CHECK(state.getInitialSpeedSetting() == 1); // Default to Medium
+
+        state.setInitialSpeedSetting(0); // Easy
+        state.reset();
+        CHECK(state.getTimeBetweenUpdates() == Config::INITIAL_STEP_TIME * 1.5f);
+
+        state.setInitialSpeedSetting(2); // Hard
+        state.reset();
+        CHECK(state.getTimeBetweenUpdates() == Config::INITIAL_STEP_TIME * 0.7f);
+
+        state.setInitialSpeedSetting(5); // Out of bounds high
+        state.reset();
+        CHECK(state.getInitialSpeedSetting() == 5); // Setter doesn't clamp, but reset uses it
+
+        state.setInitialSpeedSetting(-1); // Out of bounds low
+        state.reset();
+        CHECK(state.getInitialSpeedSetting() == -1); // Setter doesn't clamp, but reset uses it
     }
 }

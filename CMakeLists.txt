@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(CPPSimpleSnake)
+project(Viperpath)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -48,6 +48,10 @@ find_file(SYSTEM_FONT_PATH
 add_executable(${PROJECT_NAME} 
     src/main.cpp 
     src/game_logic.cpp
+    src/ai_pathfinder.cpp
+    src/highscore_manager.cpp
+    src/input_manager.cpp
+    src/shader.cpp
     src/renderer.cpp
 )
 
@@ -75,7 +79,12 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 )
 
 # --- Unit Tests ---
-add_executable(unit_tests tests/test_main.cpp src/game_logic.cpp)
+add_executable(unit_tests 
+    tests/test_main.cpp 
+    src/game_logic.cpp
+    src/ai_pathfinder.cpp
+    src/highscore_manager.cpp
+)
 target_include_directories(unit_tests PRIVATE include)
 
 target_link_libraries(unit_tests PRIVATE 

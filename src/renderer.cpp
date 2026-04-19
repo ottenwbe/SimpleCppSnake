@@ -172,7 +172,7 @@ void Renderer::updateProjection(int width, int height) {
     m_projection = glm::ortho(0.0f, static_cast<float>(width), 0.0f, static_cast<float>(height));
 }
 
-void Renderer::render(GameState& state, float /*currentTime*/, int winW, int winH) {
+void Renderer::render(GameState& state, float currentTime, int winW, int winH) {
     float targetRatio = (float)GRID_WIDTH / (float)GRID_HEIGHT;
     float windowRatio = (float)winW / (float)winH;
     int vpX, vpY, vpW, vpH;
@@ -224,6 +224,15 @@ void Renderer::render(GameState& state, float /*currentTime*/, int winW, int win
                 }
             }
             renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.7));
+        } else if (state.isShowingControls()) {
+            renderTextCentered("GAME CONTROLS", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(0.0, 0.8, 0.2));
+            renderTextCentered("Arrow Keys: Move Snake / Navigate Menu", m_screenHeight / 2.0f + 120.0f, 0.5f, glm::vec3(1.0));
+            renderTextCentered("Space / Enter: Select / Pause Game", m_screenHeight / 2.0f + 80.0f, 0.5f, glm::vec3(1.0));
+            renderTextCentered("Esc: Go Back / Quit", m_screenHeight / 2.0f + 40.0f, 0.5f, glm::vec3(1.0));
+            renderTextCentered("F11: Toggle Fullscreen", m_screenHeight / 2.0f + 0.0f, 0.5f, glm::vec3(1.0));
+            renderTextCentered("I: Toggle AI Auto-Pilot", m_screenHeight / 2.0f - 40.0f, 0.5f, glm::vec3(1.0));
+            
+            renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.7));
         } else {
             renderTextCentered("CPP SIMPLE SNAKE", m_screenHeight / 2.0f + 200.0f, 1.2f, glm::vec3(0.0, 0.8, 0.2));
             
@@ -237,11 +246,8 @@ void Renderer::render(GameState& state, float /*currentTime*/, int winW, int win
             renderTextCentered("Rules", m_screenHeight / 2.0f - 175.0f, 0.8f, rulesColor);
             glm::vec3 hsBtnColor = (state.getMenuSelection() == 4) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
             renderTextCentered("High Scores", m_screenHeight / 2.0f - 220.0f, 0.8f, hsBtnColor);
-            
-            renderTextCentered("Controls:", m_screenHeight / 2.0f - 265.0f, 0.6f, glm::vec3(1.0, 0.8, 0.2));
-            renderTextCentered("[Arrows] Move / Change Selection", m_screenHeight / 2.0f - 295.0f, 0.5f, glm::vec3(0.7));
-            renderTextCentered("[Space/Enter] Select / Pause", m_screenHeight / 2.0f - 320.0f, 0.5f, glm::vec3(0.7));
-            renderTextCentered("[Esc] Back / Quit", m_screenHeight / 2.0f - 345.0f, 0.5f, glm::vec3(0.7));
+            glm::vec3 ctrlBtnColor = (state.getMenuSelection() == 5) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
+            renderTextCentered("Controls", m_screenHeight / 2.0f - 265.0f, 0.8f, ctrlBtnColor);
         }
     } else {
         glViewport(vpX, vpY, vpW, vpH);

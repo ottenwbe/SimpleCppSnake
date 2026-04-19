@@ -126,6 +126,7 @@ void GameState::reset(float /*currentTime*/) {
     m_paused = false;
     m_showingRules = false;
     m_showingHighScores = false;
+    m_showingControls = false;
     m_score = 0;
     m_obstacles.clear();
     m_timeBetweenUpdates = 0.1f;

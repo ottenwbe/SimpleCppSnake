@@ -71,7 +71,7 @@ int main()
     auto state = std::make_unique<GameState>();
     state->getHighScoreManager().setPath((std::filesystem::path(getExecutableDir()) / "highscore.txt").string());
     state->getHighScoreManager().load();
-    state->reset();
+    state->reset(static_cast<float>(glfwGetTime()));
 
     while (!glfwWindowShouldClose(window))
     {
@@ -80,7 +80,7 @@ int main()
 
         if (state->shouldReset()) {
             state->updateHighScores();
-            state->reset();
+            state->reset(currentTime);
         }
 
         state->update(currentTime);

@@ -18,7 +18,6 @@ Renderer::~Renderer() {
     glDeleteVertexArrays(1, &m_VAO); glDeleteBuffers(1, &m_VBO); glDeleteBuffers(1, &m_instanceVBO);
     glDeleteVertexArrays(1, &m_borderVAO); glDeleteBuffers(1, &m_borderVBO);
     glDeleteVertexArrays(1, &m_pauseVAO); glDeleteBuffers(1, &m_pauseVBO);
-    glDeleteProgram(m_shaderProgram); glDeleteProgram(m_borderShaderProgram); glDeleteProgram(m_textShaderProgram);
     for (auto const& [key, val] : m_characters) glDeleteTextures(1, &val.TextureID);
 }
 
@@ -26,22 +25,9 @@ bool Renderer::init(unsigned int width, unsigned int height) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    m_shaderProgram = createShaderProgram(Shaders::vertexShaderSource, Shaders::fragmentShaderSource);
-    m_borderShaderProgram = createShaderProgram(Shaders::borderVertexShaderSource, Shaders::borderFragmentShaderSource);
-    m_textShaderProgram = createShaderProgram(Shaders::textVertexShaderSource, Shaders::textFragmentShaderSource);
-
-    m_gridCountLoc = glGetUniformLocation(m_shaderProgram, "gridCount");
-    m_colorLoc = glGetUniformLocation(m_shaderProgram, "objectColor");
-    m_isAppleLoc = glGetUniformLocation(m_shaderProgram, "isApple");
-    m_isBananaLoc = glGetUniformLocation(m_shaderProgram, "isBanana");
-    m_isGoldenAppleLoc = glGetUniformLocation(m_shaderProgram, "isGoldenApple");
-    m_isSnakeLoc = glGetUniformLocation(m_shaderProgram, "isSnake");
-    m_snakeDirectionLoc = glGetUniformLocation(m_shaderProgram, "snakeDirection");
-    m_timeLeftLoc = glGetUniformLocation(m_shaderProgram, "timeLeft");
-    m_borderColorLoc = glGetUniformLocation(m_borderShaderProgram, "borderColor");
-    m_borderTransformLoc = glGetUniformLocation(m_borderShaderProgram, "transform");
-    m_textColorLoc = glGetUniformLocation(m_textShaderProgram, "textColor");
-    m_textProjLoc = glGetUniformLocation(m_textShaderProgram, "projection");
+    m_gameShader = std::make_unique<Shader>(Shaders::vertexShaderSource, Shaders::fragmentShaderSource);
+    m_borderShader = std::make_unique<Shader>(Shaders::borderVertexShaderSource, Shaders::borderFragmentShaderSource);
+    m_textShader = std::make_unique<Shader>(Shaders::textVertexShaderSource, Shaders::textFragmentShaderSource);
 
     setupBuffers();
     setupFreetype();
@@ -53,21 +39,25 @@ void Renderer::updateProjection(int width, int height) {
     m_screenWidth = width;
     m_screenHeight = height;
     m_projection = glm::ortho(0.0f, static_cast<float>(width), 0.0f, static_cast<float>(height));
+
+    // Pre-calculate viewport letterboxing
+    float targetRatio = static_cast<float>(Config::GRID_WIDTH) / static_cast<float>(Config::GRID_HEIGHT);
+    float windowRatio = static_cast<float>(width) / static_cast<float>(height);
+
+    if (windowRatio > targetRatio) {
+        m_vpH = height; 
+        m_vpW = static_cast<int>(height * targetRatio);
+        m_vpX = (width - m_vpW) / 2; 
+        m_vpY = 0;
+    } else {
+        m_vpW = width; 
+        m_vpH = static_cast<int>(width / targetRatio);
+        m_vpX = 0; 
+        m_vpY = (height - m_vpH) / 2;
+    }
 }
 
 void Renderer::render(GameState& state, int winW, int winH) {
-    float targetRatio = (float)Config::GRID_WIDTH / (float)Config::GRID_HEIGHT;
-    float windowRatio = (float)winW / (float)winH;
-    int vpX, vpY, vpW, vpH;
-
-    if (windowRatio > targetRatio) {
-        vpH = winH; vpW = static_cast<int>(winH * targetRatio);
-        vpX = (winW - vpW) / 2; vpY = 0;
-    } else {
-        vpW = winW; vpH = static_cast<int>(vpW / targetRatio);
-        vpX = 0; vpY = (winH - vpH) / 2;
-    }
-
     glViewport(0, 0, winW, winH);
     glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -75,7 +65,7 @@ void Renderer::render(GameState& state, int winW, int winH) {
     if (state.isInMenu()) {
         renderMenu(state);
     } else {
-        renderGameWorld(state, vpX, vpY, vpW, vpH);
+        renderGameWorld(state, m_vpX, m_vpY, m_vpW, m_vpH);
         renderUI(state, winW, winH);
     }
 }
@@ -85,9 +75,9 @@ void Renderer::renderMenu(GameState& state) {
     glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(m_screenWidth / 2.0f, m_screenHeight / 2.0f, 0.0f));
     model = glm::scale(model, glm::vec3(boxW / 2.0f, boxH / 2.0f, 1.0f));
     
-    glUseProgram(m_borderShaderProgram);
-    glUniformMatrix4fv(m_borderTransformLoc, 1, GL_FALSE, glm::value_ptr(m_projection * model));
-    glUniform3f(m_borderColorLoc, 0.0f, 0.8f, 0.2f);
+    m_borderShader->use();
+    m_borderShader->setMat4("transform", m_projection * model);
+    m_borderShader->setVec3("borderColor", glm::vec3(0.0f, 0.8f, 0.2f));
     glBindVertexArray(m_borderVAO);
     glLineWidth(3.0f);
     glDrawArrays(GL_LINE_LOOP, 0, 4);
@@ -122,7 +112,7 @@ void Renderer::renderMenu(GameState& state) {
         renderTextCentered("I: Toggle AI Auto-Pilot", m_screenHeight / 2.0f - 40.0f, 0.5f, glm::vec3(1.0));
         renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.7));
     } else {
-        renderTextCentered("CPP SIMPLE SNAKE", m_screenHeight / 2.0f + 200.0f, 1.2f, glm::vec3(0.0, 0.8, 0.2));
+        renderTextCentered("VIPERPATH", m_screenHeight / 2.0f + 200.0f, 1.2f, glm::vec3(0.0, 0.8, 0.2));
         glm::vec3 startColor = (state.getMenuSelection() == 0) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
         renderTextCentered("Start Game", m_screenHeight / 2.0f - 40.0f, 1.2f, startColor);
         glm::vec3 obsColor = (state.getMenuSelection() == 1) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
@@ -142,59 +132,55 @@ void Renderer::renderMenu(GameState& state) {
 
 void Renderer::renderGameWorld(GameState& state, int vpX, int vpY, int vpW, int vpH) {
     glViewport(vpX, vpY, vpW, vpH);
-    glUseProgram(m_borderShaderProgram);
-    glUniformMatrix4fv(m_borderTransformLoc, 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
+    m_borderShader->use();
+    m_borderShader->setMat4("transform", glm::mat4(1.0f));
     glBindVertexArray(m_borderVAO);
-    glUniform3f(m_borderColorLoc, 0.5f, 0.5f, 0.5f);
+    m_borderShader->setVec3("borderColor", glm::vec3(0.5f, 0.5f, 0.5f));
     glLineWidth(5.0f);
     glDrawArrays(GL_LINE_LOOP, 0, 4);
 
-    glUseProgram(m_shaderProgram);
-    glBindVertexArray(m_VAO);
-    glUniform2f(m_gridCountLoc, (float)Config::GRID_WIDTH, (float)Config::GRID_HEIGHT);
-    glUniform1f(m_timeLeftLoc, 1.0f);
-
     // Snake
-    glm::vec3 sColor = state.isGameOver() ? glm::vec3(0.5f, 0.0f, 0.0f) : glm::vec3(0.0f, 0.8f, 0.2f);
-    glUniform3fv(m_colorLoc, 1, glm::value_ptr(sColor));
-    glUniform1i(m_isAppleLoc, 0); glUniform1i(m_isBananaLoc, 0); glUniform1i(m_isGoldenAppleLoc, 0); glUniform1i(m_isSnakeLoc, 1);
-    glUniform1i(m_snakeDirectionLoc, static_cast<int>(state.getDirection()));
     const auto& snake = state.getSnake();
     std::vector<glm::vec2> snakeData(snake.begin(), snake.end());
-    glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, snakeData.size() * sizeof(glm::vec2), snakeData.data());
-    glDrawArraysInstanced(GL_TRIANGLES, 0, 6, static_cast<unsigned int>(snakeData.size()));
-    glUniform1i(m_isSnakeLoc, 0);
+    glm::vec3 sColor = state.isGameOver() ? glm::vec3(0.5f, 0.0f, 0.0f) : glm::vec3(0.0f, 0.8f, 0.2f);
+    drawObject(RenderType::Snake, snakeData.data(), snakeData.size(), sColor, static_cast<int>(state.getDirection()));
 
     // Food
-    glUniform3f(m_colorLoc, 1.0f, 0.2f, 0.2f); glUniform1i(m_isAppleLoc, 1);
     glm::vec2 fPos = state.getFood();
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), glm::value_ptr(fPos));
-    glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1); glUniform1i(m_isAppleLoc, 0);
+    drawObject(RenderType::Apple, &fPos, 1, glm::vec3(1.0f, 0.2f, 0.2f));
 
     // Obstacles
     const auto& obstacles = state.getObstacles();
-    if (!obstacles.empty()) {
-        glUniform3f(m_colorLoc, 0.5f, 0.5f, 0.5f);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, obstacles.size() * sizeof(glm::vec2), obstacles.data());
-        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, static_cast<unsigned int>(obstacles.size()));
-    }
+    if (!obstacles.empty()) 
+        drawObject(RenderType::Obstacle, obstacles.data(), obstacles.size(), glm::vec3(0.5f, 0.5f, 0.5f));
 
     // Collectibles
     const auto& banana = state.getBanana();
-    if (banana.active) {
-        glUniform3f(m_colorLoc, 1.0f, 0.9f, 0.1f); glUniform1i(m_isBananaLoc, 1);
-        glUniform1f(m_timeLeftLoc, std::max(0.0f, banana.timeLeft / 5.0f));
-        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), glm::value_ptr(banana.pos));
-        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1); glUniform1i(m_isBananaLoc, 0);
-    }
+    if (banana.active) 
+        drawObject(RenderType::Banana, &banana.pos, 1, glm::vec3(1.0f, 0.9f, 0.1f), 0, std::max(0.0f, banana.timeLeft / Config::BANANA_TIME));
+
     const auto& gApple = state.getGoldenApple();
-    if (gApple.active) {
-        glUniform3f(m_colorLoc, 1.0f, 0.85f, 0.0f); glUniform1i(m_isGoldenAppleLoc, 1);
-        glUniform1f(m_timeLeftLoc, std::max(0.0f, gApple.timeLeft / 7.0f));
-        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), glm::value_ptr(gApple.pos));
-        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1); glUniform1i(m_isGoldenAppleLoc, 0);
-    }
+    if (gApple.active) 
+        drawObject(RenderType::GoldenApple, &gApple.pos, 1, glm::vec3(1.0f, 0.85f, 0.0f), 0, std::max(0.0f, gApple.timeLeft / Config::GOLDEN_APPLE_TIME));
+}
+
+void Renderer::drawObject(RenderType type, const glm::vec2* positions, size_t count, const glm::vec3& color, int snakeDir, float timeLeft) {
+    m_gameShader->use();
+    m_gameShader->setVec2("gridCount", glm::vec2(Config::GRID_WIDTH, Config::GRID_HEIGHT));
+    m_gameShader->setVec3("objectColor", color);
+    m_gameShader->setFloat("timeLeft", timeLeft);
+    
+    m_gameShader->setBool("isSnake",       type == RenderType::Snake);
+    m_gameShader->setBool("isApple",       type == RenderType::Apple);
+    m_gameShader->setBool("isBanana",      type == RenderType::Banana);
+    m_gameShader->setBool("isGoldenApple", type == RenderType::GoldenApple);
+    
+    if (type == RenderType::Snake) m_gameShader->setInt("snakeDirection", snakeDir);
+
+    glBindVertexArray(m_VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_instanceVBO);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, count * sizeof(glm::vec2), positions);
+    glDrawArraysInstanced(GL_TRIANGLES, 0, 6, static_cast<unsigned int>(count));
 }
 
 void Renderer::renderUI(GameState& state, int winW, int winH) {
@@ -205,9 +191,9 @@ void Renderer::renderUI(GameState& state, int winW, int winH) {
         renderText("AI AUTO-PILOT ENABLED [I]", m_screenWidth - 300.0f, m_screenHeight - 40.0f, 0.4f, glm::vec3(0.0f, 1.0f, 1.0f));
 
     if (state.isPaused()) {
-        glUseProgram(m_borderShaderProgram); glBindVertexArray(m_pauseVAO);
-        glUniformMatrix4fv(m_borderTransformLoc, 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
-        glUniform3f(m_borderColorLoc, 1.0f, 1.0f, 1.0f); glDrawArrays(GL_TRIANGLES, 0, 12);
+        m_borderShader->use(); glBindVertexArray(m_pauseVAO);
+        m_borderShader->setMat4("transform", glm::mat4(1.0f));
+        m_borderShader->setVec3("borderColor", glm::vec3(1.0f, 1.0f, 1.0f)); glDrawArrays(GL_TRIANGLES, 0, 12);
         renderTextCentered("PAUSED", m_screenHeight / 2.0f + 120.0f, 1.0f, glm::vec3(1.0));
         renderTextCentered("Press SPACE to Resume", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.8));
     }
@@ -238,9 +224,9 @@ void Renderer::renderTextCentered(const std::string& text, float y, float scale,
 }
 
 void Renderer::renderText(const std::string& text, float x, float y, float scale, glm::vec3 color) {
-    glUseProgram(m_textShaderProgram);
-    glUniform3f(m_textColorLoc, color.x, color.y, color.z);
-    glUniformMatrix4fv(m_textProjLoc, 1, GL_FALSE, glm::value_ptr(m_projection));
+    m_textShader->use();
+    m_textShader->setVec3("textColor", color);
+    m_textShader->setMat4("projection", m_projection);
     glActiveTexture(GL_TEXTURE0);
     glBindVertexArray(m_textVAO);
 
@@ -262,36 +248,6 @@ void Renderer::renderText(const std::string& text, float x, float y, float scale
         x += (ch.Advance >> 6) * scale;
     }
     glBindVertexArray(0); glBindTexture(GL_TEXTURE_2D, 0);
-}
-
-unsigned int Renderer::createShaderProgram(const char* vertexSource, const char* fragmentSource) {
-    auto compile = [](unsigned int type, const char* source) {
-        unsigned int shader = glCreateShader(type);
-        glShaderSource(shader, 1, &source, NULL);
-        glCompileShader(shader);
-        int success; glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-        if (!success) {
-            char info[512]; glGetShaderInfoLog(shader, 512, NULL, info);
-            spdlog::error("Shader Compilation Failed ({}): {}", (type == GL_VERTEX_SHADER ? "Vertex" : "Fragment"), info);
-        }
-        return shader;
-    };
-
-    unsigned int vs = compile(GL_VERTEX_SHADER, vertexSource);
-    unsigned int fs = compile(GL_FRAGMENT_SHADER, fragmentSource);
-    unsigned int prog = glCreateProgram();
-    glAttachShader(prog, vs);
-    glAttachShader(prog, fs);
-    glLinkProgram(prog);
-
-    int success; glGetProgramiv(prog, GL_LINK_STATUS, &success);
-    if (!success) {
-        char info[512]; glGetProgramInfoLog(prog, 512, NULL, info);
-        spdlog::error("Shader Program Linking Failed: {}", info);
-    }
-
-    glDeleteShader(vs); glDeleteShader(fs);
-    return prog;
 }
 
 void Renderer::setupBuffers() {

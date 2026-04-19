@@ -5,59 +5,21 @@
 #include <filesystem>
 #include "game_logic.hpp"
 #include "renderer.hpp"
+#include "input_manager.hpp"
 #include <glm/glm.hpp>
-#include <unordered_map>
-
-class InputManager {
-public:
-    void update(GLFWwindow* window, const std::vector<int>& keysToTrack) {
-        for (int key : keysToTrack) {
-            bool isPressed = glfwGetKey(window, key) == GLFW_PRESS;
-            auto& state = m_keyStates[key];
-            state.justPressed = isPressed && !state.down;
-            state.down = isPressed;
-        }
-    }
-    bool isJustPressed(int key) { return m_keyStates[key].justPressed; }
-    bool isDown(int key) { return m_keyStates[key].down; }
-private:
-    struct KeyState { bool down = false; bool justPressed = false; };
-    std::unordered_map<int, KeyState> m_keyStates;
-};
 
 class SnakeApplication {
 public:
     SnakeApplication() {
         spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
-        spdlog::info("Initializing CPP Simple Snake...");
-        
-        if (!glfwInit()) {
-            throw std::runtime_error("Failed to initialize GLFW");
-        }
+        spdlog::info("Initializing Viperpath...");
 
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
+        setupWindow();
 
-        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-        m_screenWidth = mode->width;
-        m_screenHeight = mode->height;
-
-        m_window = glfwCreateWindow(m_screenWidth, m_screenHeight, "CPP Simple Snake", monitor, nullptr);
-        if (!m_window) {
-            glfwTerminate();
-            throw std::runtime_error("Failed to create GLFW window");
-        }
-
-        glfwMakeContextCurrent(m_window);
-        
         if (!m_renderer.init(m_screenWidth, m_screenHeight)) {
             throw std::runtime_error("Failed to initialize Renderer");
         }
 
-        m_gameState = std::make_unique<GameState>();
         m_gameState->getHighScoreManager().setPath((std::filesystem::path(getExecutableDir()) / "highscore.txt").string());
         m_gameState->getHighScoreManager().load();
         float now = static_cast<float>(glfwGetTime());
@@ -98,6 +60,32 @@ public:
     }
 
 private:
+    void setupWindow() {
+        if (!glfwInit()) throw std::runtime_error("Failed to initialize GLFW");
+
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
+
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+        m_screenWidth = mode->width;
+        m_screenHeight = mode->height;
+
+        m_window = glfwCreateWindow(m_screenWidth, m_screenHeight, "Viperpath", monitor, nullptr);
+        if (!m_window) {
+            glfwTerminate();
+            throw std::runtime_error("Failed to create GLFW window");
+        }
+
+        glfwMakeContextCurrent(m_window);
+        // VSync on for smooth movement
+        glfwSwapInterval(1);
+
+        m_gameState = std::make_unique<GameState>();
+    }
+
     void updateViewportAndProjection(int& winW, int& winH) {
         glfwGetFramebufferSize(m_window, &winW, &winH);
         if (static_cast<unsigned int>(winW) != m_screenWidth || static_cast<unsigned int>(winH) != m_screenHeight) {

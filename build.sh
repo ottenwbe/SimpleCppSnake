@@ -40,4 +40,4 @@ echo "--- Building with CMake ---"
 cmake --build ${BUILD_DIR}
 
 echo "--- Build complete! ---"
-echo "You can now run the game with: ./${BUILD_DIR}/CPPSimpleSnake"
+echo "You can now run the game with: ./${BUILD_DIR}/Viperpath"

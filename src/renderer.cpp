@@ -191,8 +191,8 @@ void Renderer::render(GameState& state, float /*currentTime*/, int winW, int win
 
     if (state.isInMenu()) {
         // Draw Menu Box
-        float boxW = 800.0f;
-        float boxH = 650.0f;
+        float boxW = 1000.0f;
+        float boxH = 800.0f;
         glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(m_screenWidth / 2.0f, m_screenHeight / 2.0f, 0.0f));
         model = glm::scale(model, glm::vec3(boxW / 2.0f, boxH / 2.0f, 1.0f));
         
@@ -211,15 +211,22 @@ void Renderer::render(GameState& state, float /*currentTime*/, int winW, int win
             renderTextCentered("4. The faster you eat, the faster the game gets.", m_screenHeight / 2.0f + 30.0f, 0.5f, glm::vec3(1.0));
             renderTextCentered("5. AI Auto-Pilot can help, but it's not perfect.", m_screenHeight / 2.0f + 0.0f, 0.5f, glm::vec3(1.0));
             renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 100.0f, 0.6f, glm::vec3(0.7));
+        } else if (state.isShowingHighScores()) {
+            renderTextCentered("TOP 5 HIGH SCORES", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(1.0, 0.9, 0.3));
+            const auto& entries = state.getHighScoreManager().getEntries();
+            if (entries.empty()) {
+                renderTextCentered("No scores yet. Go play!", m_screenHeight / 2.0f + 50.0f, 0.6f, glm::vec3(0.7));
+            } else {
+                for (size_t i = 0; i < entries.size(); ++i) {
+                    std::string hs = std::to_string(i + 1) + ". " + std::to_string(entries[i].score) + 
+                                     (entries[i].aiUsed ? " (AI)" : " (No AI)") + (entries[i].obstaclesEnabled ? " (Obs)" : " (No Obs)");
+                    renderTextCentered(hs, m_screenHeight / 2.0f + 110.0f - i * 40.0f, 0.6f, glm::vec3(1.0, 0.9, 0.3));
+                }
+            }
+            renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.7));
         } else {
             renderTextCentered("CPP SIMPLE SNAKE", m_screenHeight / 2.0f + 200.0f, 1.2f, glm::vec3(0.0, 0.8, 0.2));
-            renderTextCentered("Top 5 High Scores:", m_screenHeight / 2.0f + 140.0f, 0.6f, glm::vec3(1.0, 0.9, 0.3));
-            const auto& entries = state.getHighScoreManager().getEntries();
-            for (size_t i = 0; i < entries.size(); ++i) {
-                std::string hs = std::to_string(i + 1) + ". " + std::to_string(entries[i].score) + 
-                                 (entries[i].aiUsed ? " (AI)" : " (No AI)") + (entries[i].obstaclesEnabled ? " (Obs)" : " (No Obs)");
-                renderTextCentered(hs, m_screenHeight / 2.0f + 110.0f - i * 25.0f, 0.5f, glm::vec3(1.0, 0.9, 0.3));
-            }
+            
             glm::vec3 startColor = (state.getMenuSelection() == 0) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
             renderTextCentered("Start Game", m_screenHeight / 2.0f - 40.0f, 1.2f, startColor);
             glm::vec3 obsColor = (state.getMenuSelection() == 1) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
@@ -228,11 +235,13 @@ void Renderer::render(GameState& state, float /*currentTime*/, int winW, int win
             renderTextCentered("AI Auto-Pilot: " + std::string(state.isAIEnabled() ? "ON" : "OFF"), m_screenHeight / 2.0f - 130.0f, 0.6f, aiColor);
             glm::vec3 rulesColor = (state.getMenuSelection() == 3) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
             renderTextCentered("Rules", m_screenHeight / 2.0f - 175.0f, 0.8f, rulesColor);
+            glm::vec3 hsBtnColor = (state.getMenuSelection() == 4) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
+            renderTextCentered("High Scores", m_screenHeight / 2.0f - 220.0f, 0.8f, hsBtnColor);
             
-            renderTextCentered("Controls:", m_screenHeight / 2.0f - 225.0f, 0.6f, glm::vec3(1.0, 0.8, 0.2));
-            renderTextCentered("[Arrows] Move / Change Selection", m_screenHeight / 2.0f - 255.0f, 0.5f, glm::vec3(0.7));
-            renderTextCentered("[Space/Enter] Select / Pause", m_screenHeight / 2.0f - 280.0f, 0.5f, glm::vec3(0.7));
-            renderTextCentered("[Esc] Back / Quit", m_screenHeight / 2.0f - 305.0f, 0.5f, glm::vec3(0.7));
+            renderTextCentered("Controls:", m_screenHeight / 2.0f - 265.0f, 0.6f, glm::vec3(1.0, 0.8, 0.2));
+            renderTextCentered("[Arrows] Move / Change Selection", m_screenHeight / 2.0f - 295.0f, 0.5f, glm::vec3(0.7));
+            renderTextCentered("[Space/Enter] Select / Pause", m_screenHeight / 2.0f - 320.0f, 0.5f, glm::vec3(0.7));
+            renderTextCentered("[Esc] Back / Quit", m_screenHeight / 2.0f - 345.0f, 0.5f, glm::vec3(0.7));
         }
     } else {
         glViewport(vpX, vpY, vpW, vpH);

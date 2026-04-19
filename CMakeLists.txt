@@ -48,6 +48,7 @@ find_file(SYSTEM_FONT_PATH
 add_executable(${PROJECT_NAME} 
     src/main.cpp 
     src/game_logic.cpp
+    src/renderer.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE include)

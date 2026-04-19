@@ -96,9 +96,9 @@ TEST_CASE("Basic Game Logic", "[logic]") {
     }
 
     SECTION("High Score Ranking") {
-        state.highScores.clear();
-        state.highScores.push_back({10, false, true});
-        state.highScorePath = ""; // Prevent file I/O during tests
+        state.highScores = HighScoreManager(""); // Reset and prevent file I/O during tests
+        state.highScores.update(10, false, true);
+
         state.score = 20;
         state.gameOver = true;
         state.highScoreChecked = false;
@@ -106,8 +106,8 @@ TEST_CASE("Basic Game Logic", "[logic]") {
         state.aiUsedThisRun = false;
 
         updateHighScores(state);
-        REQUIRE(state.highScores.size() >= 1);
-        CHECK(state.highScores[0].score == 20);
+        REQUIRE(state.highScores.getEntries().size() >= 1);
+        CHECK(state.highScores.getEntries()[0].score == 20);
         CHECK(state.isNewTopScore == true);
     }
 }

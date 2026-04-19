@@ -36,6 +36,22 @@ struct HighScoreEntry {
     bool obstaclesEnabled;
 };
 
+class HighScoreManager {
+public:
+    HighScoreManager() = default;
+    explicit HighScoreManager(const std::string& path) : path(path) {}
+
+    void setPath(const std::string& p) { path = p; }
+    void load();
+    void save() const;
+    bool update(int score, bool aiUsed, bool obstaclesEnabled);
+    const std::vector<HighScoreEntry>& getEntries() const { return entries; }
+
+private:
+    std::vector<HighScoreEntry> entries;
+    std::string path;
+};
+
 struct GameState {
     std::deque<glm::vec2> snake;
     Direction snakeDirection = Direction::RIGHT;
@@ -52,21 +68,18 @@ struct GameState {
     int score = 0;
     float lastUpdateTime = 0.0f;
     float timeBetweenUpdates = 0.1f;
-    std::vector<HighScoreEntry> highScores;
+    HighScoreManager highScores;
     bool obstaclesEnabled = true;
     int menuSelection = 0;
     bool aiUsedThisRun = false;
     bool highScoreChecked = false;
     bool isNewTopScore = false;
-    std::string highScorePath;
 };
 
 // Path Utility
 std::string getExecutableDir();
 
 // High Score I/O
-void saveHighScore(const GameState& state);
-void loadHighScore(GameState& state);
 void updateHighScores(GameState& state);
 
 // Grid Logic

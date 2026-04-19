@@ -7,11 +7,11 @@ std::string getExecutableDir() {
     return std::filesystem::path(std::string(result, count)).parent_path().string();
 }
 
-void saveHighScore(const GameState& state) {
-    if (state.highScorePath.empty()) return;
-    std::ofstream file(state.highScorePath);
+void HighScoreManager::save() const {
+    if (path.empty()) return;
+    std::ofstream file(path);
     if (file.is_open()) {
-        for (const auto& entry : state.highScores) {
+        for (const auto& entry : entries) {
             file << "Score: " << entry.score << "\n";
             file << "AI_Used: " << (entry.aiUsed ? "Yes" : "No") << "\n";
             file << "Obstacles: " << (entry.obstaclesEnabled ? "Yes" : "No") << "\n";
@@ -20,10 +20,10 @@ void saveHighScore(const GameState& state) {
     }
 }
 
-void loadHighScore(GameState& state) {
-    state.highScores.clear();
-    if (state.highScorePath.empty()) return;
-    std::ifstream file(state.highScorePath);
+void HighScoreManager::load() {
+    entries.clear();
+    if (path.empty()) return;
+    std::ifstream file(path);
     if (file.is_open()) {
         std::string line;
         while (std::getline(file, line)) {
@@ -36,25 +36,31 @@ void loadHighScore(GameState& state) {
             if (std::getline(file, line)) entry.aiUsed = (line.find("Yes") != std::string::npos);
             if (std::getline(file, line)) {
                 entry.obstaclesEnabled = (line.find("Yes") != std::string::npos);
-                state.highScores.push_back(entry);
+                entries.push_back(entry);
             }
         }
         file.close();
     }
 }
 
-void updateHighScores(GameState& state) {
-    if (state.highScoreChecked || state.score <= 0) return;
-    bool qualifies = state.highScores.size() < 5 || state.score > state.highScores.back().score;
+bool HighScoreManager::update(int score, bool aiUsed, bool obstaclesEnabled) {
+    if (score <= 0) return false;
+    bool qualifies = entries.size() < 5 || score > entries.back().score;
     if (qualifies) {
-        state.highScores.push_back({state.score, state.aiUsedThisRun, state.obstaclesEnabled});
-        std::sort(state.highScores.begin(), state.highScores.end(), [](const HighScoreEntry& a, const HighScoreEntry& b) {
+        entries.push_back({score, aiUsed, obstaclesEnabled});
+        std::sort(entries.begin(), entries.end(), [](const HighScoreEntry& a, const HighScoreEntry& b) {
             return a.score > b.score;
         });
-        if (state.highScores.size() > 5) state.highScores.resize(5);
-        state.isNewTopScore = true;
-        saveHighScore(state);
+        if (entries.size() > 5) entries.resize(5);
+        save();
+        return true;
     }
+    return false;
+}
+
+void updateHighScores(GameState& state) {
+    if (state.highScoreChecked || state.score <= 0) return;
+    state.isNewTopScore = state.highScores.update(state.score, state.aiUsedThisRun, state.obstaclesEnabled);
     state.highScoreChecked = true;
 }
 

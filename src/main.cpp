@@ -453,8 +453,8 @@ int main()
 
     // Centralized Game State
     auto state = std::make_unique<GameState>();
-    state->highScorePath = (std::filesystem::path(getExecutableDir()) / "highscore.txt").string();
-    loadHighScore(*state);
+    state->highScores.setPath((std::filesystem::path(getExecutableDir()) / "highscore.txt").string());
+    state->highScores.load();
     resetGame(*state);
     
     // Setup text projection once
@@ -516,10 +516,11 @@ int main()
             RenderText(renderer, "SNAKE GAME", SCR_WIDTH / 2.0f - 150.0f, SCR_HEIGHT / 2.0f + 200.0f, 1.2f, glm::vec3(0.0, 0.8, 0.2));
 
             RenderText(renderer, "Top 5 High Scores:", SCR_WIDTH / 2.0f - 150.0f, SCR_HEIGHT / 2.0f + 140.0f, 0.6f, glm::vec3(1.0, 0.9, 0.3));
-            for (size_t i = 0; i < state->highScores.size(); ++i) {
-                std::string hs = std::to_string(i + 1) + ". " + std::to_string(state->highScores[i].score) + 
-                                 (state->highScores[i].aiUsed ? " (AI)" : " (No AI)") +
-                                 (state->highScores[i].obstaclesEnabled ? " (Obs)" : " (No Obs)");
+            const auto& entries = state->highScores.getEntries();
+            for (size_t i = 0; i < entries.size(); ++i) {
+                std::string hs = std::to_string(i + 1) + ". " + std::to_string(entries[i].score) + 
+                                 (entries[i].aiUsed ? " (AI)" : " (No AI)") +
+                                 (entries[i].obstaclesEnabled ? " (Obs)" : " (No Obs)");
                 RenderText(renderer, hs, SCR_WIDTH / 2.0f - 100.0f, SCR_HEIGHT / 2.0f + 110.0f - i * 25.0f, 0.5f, glm::vec3(1.0, 0.9, 0.3));
             }
 

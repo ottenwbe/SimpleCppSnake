@@ -26,187 +26,184 @@
 #include "game_logic.hpp"
 #include "renderer.hpp"
 
-// Game Settings
-unsigned int SCR_WIDTH = 1920; // Will be updated to monitor's resolution
-unsigned int SCR_HEIGHT = 1080; // Will be updated to monitor's resolution
-
-// Function Prototypes
-void framebuffer_size_callback(GLFWwindow* window, int width, int height);
-void handleInput(GLFWwindow* window, GameState& state);
-
-int main()
-{
-    spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
-    spdlog::info("Starting Snake Game...");
-
-    glfwInit();
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
-
-    // Get primary monitor and its video mode for fullscreen
-    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-    const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-
-    // Update SCR_WIDTH and SCR_HEIGHT to the monitor's resolution
-    SCR_WIDTH = mode->width;
-    SCR_HEIGHT = mode->height;
-
-    // Create a fullscreen window
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "SimpleCppSnake", monitor, NULL);
-    if (window == NULL)
-    {
-        spdlog::critical("Failed to create GLFW window");
-        glfwTerminate();
-        return -1;
-    }
-    glfwMakeContextCurrent(window);
-    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-
-    Renderer renderer;
-    if (!renderer.init(SCR_WIDTH, SCR_HEIGHT)) return -1;
-
-    // Centralized Game State
-    auto state = std::make_unique<GameState>();
-    state->getHighScoreManager().setPath((std::filesystem::path(getExecutableDir()) / "highscore.txt").string());
-    state->getHighScoreManager().load();
-    state->reset(static_cast<float>(glfwGetTime()));
-
-    while (!glfwWindowShouldClose(window))
-    {
-        float currentTime = glfwGetTime();
-        handleInput(window, *state);
-
-        if (state->shouldReset()) {
-            state->updateHighScores();
-            state->reset(currentTime);
-        }
-
-        state->update(currentTime);
-
-        int winW, winH;
-        glfwGetFramebufferSize(window, &winW, &winH);
+class SnakeApplication {
+public:
+    SnakeApplication() {
+        spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
+        spdlog::info("Initializing Snake Game...");
         
-        // Update projection if window size changed (e.g., after F11)
-        if (static_cast<unsigned int>(winW) != SCR_WIDTH || static_cast<unsigned int>(winH) != SCR_HEIGHT) {
-            SCR_WIDTH = winW; SCR_HEIGHT = winH;
-            renderer.updateProjection(winW, winH);
+        if (!glfwInit()) {
+            throw std::runtime_error("Failed to initialize GLFW");
         }
 
-        renderer.render(*state, currentTime, winW, winH);
-        glfwSwapBuffers(window);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
+
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+        m_screenWidth = mode->width;
+        m_screenHeight = mode->height;
+
+        m_window = glfwCreateWindow(m_screenWidth, m_screenHeight, "SimpleCppSnake", monitor, nullptr);
+        if (!m_window) {
+            glfwTerminate();
+            throw std::runtime_error("Failed to create GLFW window");
+        }
+
+        glfwMakeContextCurrent(m_window);
+        
+        if (!m_renderer.init(m_screenWidth, m_screenHeight)) {
+            throw std::runtime_error("Failed to initialize Renderer");
+        }
+
+        m_gameState = std::make_unique<GameState>();
+        m_gameState->getHighScoreManager().setPath((std::filesystem::path(getExecutableDir()) / "highscore.txt").string());
+        m_gameState->getHighScoreManager().load();
+        m_gameState->reset(static_cast<float>(glfwGetTime()));
     }
-    
-    spdlog::info("Shutting down...");
-    glfwTerminate();
-    return 0;
-}
 
-void handleInput(GLFWwindow* window, GameState& state)
-{
-    // Poll for and process events
-    glfwPollEvents();
+    ~SnakeApplication() {
+        spdlog::info("Shutting down...");
+        glfwTerminate();
+    }
 
-    static bool actionPressedLastFrame = false;
-    bool actionPressed = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) || (glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS);
+    void run() {
+        while (!glfwWindowShouldClose(m_window)) {
+            float currentTime = static_cast<float>(glfwGetTime());
+            
+            processInput();
 
-    static bool isFullscreen = true; // Start in fullscreen
-    static int windowedX = 100, windowedY = 100, windowedW = 1280, windowedH = 720; // Default windowed size
-    static bool f11PressedLastFrame = false;
-    bool f11Pressed = glfwGetKey(window, GLFW_KEY_F11) == GLFW_PRESS;
+            if (m_gameState->shouldReset()) {
+                m_gameState->updateHighScores();
+                m_gameState->reset(currentTime);
+            }
 
-    if (f11Pressed && !f11PressedLastFrame) {
-        if (isFullscreen) {
-            // Restore windowed mode
-            glfwSetWindowMonitor(window, NULL, windowedX, windowedY, windowedW, windowedH, 0);
-            isFullscreen = false;
+            m_gameState->update(currentTime);
+            updateViewportAndProjection();
+
+            int winW, winH;
+            glfwGetFramebufferSize(m_window, &winW, &winH);
+            m_renderer.render(*m_gameState, currentTime, winW, winH);
+            
+            glfwSwapBuffers(m_window);
+        }
+    }
+
+private:
+    void updateViewportAndProjection() {
+        int winW, winH;
+        glfwGetFramebufferSize(m_window, &winW, &winH);
+        if (static_cast<unsigned int>(winW) != m_screenWidth || static_cast<unsigned int>(winH) != m_screenHeight) {
+            m_screenWidth = winW;
+            m_screenHeight = winH;
+            glViewport(0, 0, winW, winH);
+            m_renderer.updateProjection(winW, winH);
+        }
+    }
+
+    bool isKeyJustPressed(int key, bool& wasPressed) {
+        bool isPressed = glfwGetKey(m_window, key) == GLFW_PRESS;
+        bool result = isPressed && !wasPressed;
+        wasPressed = isPressed;
+        return result;
+    }
+
+    void processInput() {
+        glfwPollEvents();
+
+        if (isKeyJustPressed(GLFW_KEY_F11, m_inputStates.f11)) {
+            toggleFullscreen();
+        }
+
+        if (isKeyJustPressed(GLFW_KEY_ESCAPE, m_inputStates.esc)) {
+            if (m_gameState->isInMenu()) glfwSetWindowShouldClose(m_window, true);
+            else { m_gameState->setInMenu(true); m_gameState->setShouldReset(true); }
+        }
+
+        if (isKeyJustPressed(GLFW_KEY_I, m_inputStates.i)) {
+            m_gameState->toggleAI();
+        }
+
+        bool action = (glfwGetKey(m_window, GLFW_KEY_SPACE) == GLFW_PRESS) || (glfwGetKey(m_window, GLFW_KEY_ENTER) == GLFW_PRESS);
+        if (action && !m_inputStates.action) {
+            handleActionKey();
+        }
+        m_inputStates.action = action;
+
+        if (m_gameState->isInMenu()) {
+            handleMenuNavigation();
+        } else if (!m_gameState->isAIEnabled() && !m_gameState->isGameOver() && !m_gameState->isPaused()) {
+            handleGameMovement();
+        }
+    }
+
+    void handleActionKey() {
+        if (m_gameState->isInMenu()) {
+            int sel = m_gameState->getMenuSelection();
+            if (sel == 0) { m_gameState->setInMenu(false); m_gameState->setShouldReset(true); }
+            else if (sel == 1) m_gameState->toggleObstacles();
+            else if (sel == 2) m_gameState->toggleAI();
+        } else if (m_gameState->isGameOver()) {
+            m_gameState->setShouldReset(true);
         } else {
-            // Go fullscreen
-            glfwGetWindowPos(window, &windowedX, &windowedY);
-            glfwGetWindowSize(window, &windowedW, &windowedH);
+            m_gameState->togglePause();
+        }
+    }
 
+    void handleMenuNavigation() {
+        if (isKeyJustPressed(GLFW_KEY_UP, m_inputStates.up)) 
+            m_gameState->setMenuSelection((m_gameState->getMenuSelection() - 1 + 3) % 3);
+        if (isKeyJustPressed(GLFW_KEY_DOWN, m_inputStates.down)) 
+            m_gameState->setMenuSelection((m_gameState->getMenuSelection() + 1) % 3);
+    }
+
+    void handleGameMovement() {
+        if (glfwGetKey(m_window, GLFW_KEY_UP) == GLFW_PRESS && m_gameState->getDirection() != Direction::DOWN)
+            m_gameState->setDirection(Direction::UP);
+        if (glfwGetKey(m_window, GLFW_KEY_DOWN) == GLFW_PRESS && m_gameState->getDirection() != Direction::UP)
+            m_gameState->setDirection(Direction::DOWN);
+        if (glfwGetKey(m_window, GLFW_KEY_LEFT) == GLFW_PRESS && m_gameState->getDirection() != Direction::RIGHT)
+            m_gameState->setDirection(Direction::LEFT);
+        if (glfwGetKey(m_window, GLFW_KEY_RIGHT) == GLFW_PRESS && m_gameState->getDirection() != Direction::LEFT)
+            m_gameState->setDirection(Direction::RIGHT);
+    }
+
+    void toggleFullscreen() {
+        if (m_isFullscreen) {
+            glfwSetWindowMonitor(m_window, nullptr, m_windowedPos.x, m_windowedPos.y, m_windowedSize.x, m_windowedSize.y, 0);
+            m_isFullscreen = false;
+        } else {
+            glfwGetWindowPos(m_window, &m_windowedPos.x, &m_windowedPos.y);
+            glfwGetWindowSize(m_window, &m_windowedSize.x, &m_windowedSize.y);
             GLFWmonitor* monitor = glfwGetPrimaryMonitor();
             const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-            glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
-            isFullscreen = true;
+            glfwSetWindowMonitor(m_window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+            m_isFullscreen = true;
         }
     }
-    f11PressedLastFrame = f11Pressed;
 
-    static bool escPressedLastFrame = false;
-    bool escPressed = glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS;
+    GLFWwindow* m_window = nullptr;
+    Renderer m_renderer;
+    std::unique_ptr<GameState> m_gameState;
+    unsigned int m_screenWidth, m_screenHeight;
 
-    if (escPressed && !escPressedLastFrame) {
-        if (state.isInMenu()) {
-            glfwSetWindowShouldClose(window, true);
-        } else {
-            state.setInMenu(true);
-            state.setShouldReset(true);
-        }
+    bool m_isFullscreen = true;
+    glm::ivec2 m_windowedPos{100, 100}, m_windowedSize{1280, 720};
+
+    struct {
+        bool f11 = false, esc = false, i = false, action = false, up = false, down = false;
+    } m_inputStates;
+};
+
+int main() {
+    try {
+        SnakeApplication app;
+        app.run();
+    } catch (const std::exception& e) {
+        spdlog::critical("Application failure: {}", e.what());
+        return -1;
     }
-    escPressedLastFrame = escPressed;
-
-    static bool iPressedLastFrame = false;
-    bool iPressed = glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS;
-    if (iPressed && !iPressedLastFrame) {
-        state.toggleAI();
-    }
-    iPressedLastFrame = iPressed;
-
-    // This part handles Enter/Space key
-    if (actionPressed && !actionPressedLastFrame) {
-        if (state.isInMenu()) {
-            if (state.getMenuSelection() == 0) {
-                state.setInMenu(false);
-                state.setShouldReset(true); // Reset with new settings
-            } else if (state.getMenuSelection() == 1) {
-                state.toggleObstacles();
-            } else if (state.getMenuSelection() == 2) {
-                state.toggleAI();
-            }
-        } else if (state.isGameOver()) {
-            state.setShouldReset(true);
-        } else {
-            state.togglePause();
-        }
-    }
-    actionPressedLastFrame = actionPressed;
-
-    // Menu Navigation
-    if (state.isInMenu()) {
-        static bool upPressedLastFrame = false;
-        bool upPressed = glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS;
-        if (upPressed && !upPressedLastFrame) {
-            state.setMenuSelection((state.getMenuSelection() - 1 + 3) % 3);
-        }
-        upPressedLastFrame = upPressed;
-
-        static bool downPressedLastFrame = false;
-        bool downPressed = glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS;
-        if (downPressed && !downPressedLastFrame) {
-            state.setMenuSelection((state.getMenuSelection() + 1) % 3);
-        }
-        downPressedLastFrame = downPressed;
-
-        return; // Don't process movement keys while in menu
-    }
-
-    if (state.isAIEnabled()) return; // Don't allow manual control while AI is running
-
-    if (state.isGameOver() || state.isPaused()) return;
-
-    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS && state.getDirection() != Direction::DOWN)
-        state.setDirection(Direction::UP);
-    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS && state.getDirection() != Direction::UP)
-        state.setDirection(Direction::DOWN);
-    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS && state.getDirection() != Direction::RIGHT)
-        state.setDirection(Direction::LEFT);
-    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS && state.getDirection() != Direction::LEFT)
-        state.setDirection(Direction::RIGHT);
-}
-
-void framebuffer_size_callback(GLFWwindow* /*window*/, int width, int height)
-{
-    glViewport(0, 0, width, height);
+    return 0;
 }

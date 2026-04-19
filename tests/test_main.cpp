@@ -208,4 +208,18 @@ TEST_CASE("AI Pathfinding", "[ai]") {
         auto next = AIPathfinder::getNextMove(state.getSnake().front(), state.getFood(), state.getSnake(), state.getObstacles(), state.getDirection());
         CHECK(next == Direction::RIGHT);
     }
+
+    SECTION("AI avoids snake body") {
+        // Setup: Head at (5,5), body blocking UP, LEFT, and RIGHT
+        // Food is placed behind the body wall at (5,7)
+        state.debugSetSnake({
+            {5, 5}, {6, 5}, {6, 6}, {5, 6}, {4, 6}, {4, 5}
+        });
+        state.debugSetFood({5, 7});
+        state.debugSetObstacles({});
+
+        Direction d = AIPathfinder::getNextMove(state.getSnake().front(), state.getFood(), state.getSnake(), state.getObstacles(), state.getDirection());
+        // The only safe move is DOWN (5, 4) to navigate around the U-shaped body
+        CHECK(d == Direction::DOWN);
+    }
 }

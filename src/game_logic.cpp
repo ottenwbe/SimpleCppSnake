@@ -185,14 +185,9 @@ void GameState::performTick() {
         m_aiUsedThisRun = true;
     }
 
-    glm::vec2 newHead = m_snake.front();
-    if (m_snakeDirection == Direction::UP)    newHead.y += 1;
-    if (m_snakeDirection == Direction::DOWN)  newHead.y -= 1;
-    if (m_snakeDirection == Direction::LEFT)  newHead.x -= 1;
-    if (m_snakeDirection == Direction::RIGHT) newHead.x += 1;
+    glm::vec2 newHead = m_snake.front() + getDirectionOffset(m_snakeDirection);
 
-    // Wall collision
-    if (newHead.x < 0 || newHead.x >= GRID_WIDTH || newHead.y < 0 || newHead.y >= GRID_HEIGHT) {
+    if (!isInsideGrid(newHead)) {
         m_gameOver = true;
     }
 

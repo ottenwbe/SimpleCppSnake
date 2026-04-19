@@ -18,6 +18,20 @@ const int GRID_HEIGHT = 15;
 
 enum class Direction { UP, DOWN, LEFT, RIGHT };
 
+inline glm::vec2 getDirectionOffset(Direction dir) {
+    switch (dir) {
+        case Direction::UP:    return {0, 1};
+        case Direction::DOWN:  return {0, -1};
+        case Direction::LEFT:  return {-1, 0};
+        case Direction::RIGHT: return {1, 0};
+    }
+    return {0, 0};
+}
+
+inline bool isInsideGrid(glm::vec2 pos) {
+    return pos.x >= 0 && pos.x < GRID_WIDTH && pos.y >= 0 && pos.y < GRID_HEIGHT;
+}
+
 struct Banana {
     glm::vec2 pos;
     float timeLeft = 0.0f;

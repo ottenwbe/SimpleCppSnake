@@ -135,6 +135,8 @@ void Renderer::renderMenu(GameState& state) {
         renderTextCentered("High Scores", m_screenHeight / 2.0f - 220.0f, 0.8f, hsBtnColor);
         glm::vec3 ctrlBtnColor = (state.getMenuSelection() == 5) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
         renderTextCentered("Controls", m_screenHeight / 2.0f - 265.0f, 0.8f, ctrlBtnColor);
+        glm::vec3 quitBtnColor = (state.getMenuSelection() == 6) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
+        renderTextCentered("Quit Game", m_screenHeight / 2.0f - 310.0f, 0.8f, quitBtnColor);
     }
 }
 

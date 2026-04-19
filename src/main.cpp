@@ -144,6 +144,7 @@ private:
             else if (sel == 3) m_gameState->setShowingRules(true);
             else if (sel == 4) m_gameState->setShowingHighScores(true);
             else if (sel == 5) m_gameState->setShowingControls(true);
+            else if (sel == 6) glfwSetWindowShouldClose(m_window, true);
         } else if (m_gameState->isGameOver()) {
             m_gameState->setShouldReset(true);
         } else {
@@ -153,10 +154,10 @@ private:
 
     void handleMenuNavigation() {
         if (m_gameState->isShowingRules() || m_gameState->isShowingHighScores() || m_gameState->isShowingControls()) return;
-        if (m_input.isJustPressed(GLFW_KEY_UP)) 
-            m_gameState->setMenuSelection((m_gameState->getMenuSelection() - 1 + 6) % 6);
-        if (m_input.isJustPressed(GLFW_KEY_DOWN)) 
-            m_gameState->setMenuSelection((m_gameState->getMenuSelection() + 1) % 6);
+        if (m_input.isJustPressed(GLFW_KEY_UP))
+            m_gameState->setMenuSelection((m_gameState->getMenuSelection() - 1 + 7) % 7);
+        if (m_input.isJustPressed(GLFW_KEY_DOWN))
+            m_gameState->setMenuSelection((m_gameState->getMenuSelection() + 1) % 7);
     }
 
     void handleGameMovement() {

@@ -17,13 +17,9 @@ Direction AIPathfinder::getNextMove(
 
     std::vector<Direction> dirs = {Direction::UP, Direction::DOWN, Direction::LEFT, Direction::RIGHT};
     for (Direction d : dirs) {
-        glm::vec2 next = head;
-        if (d == Direction::UP) next.y += 1;
-        else if (d == Direction::DOWN) next.y -= 1;
-        else if (d == Direction::LEFT) next.x -= 1;
-        else if (d == Direction::RIGHT) next.x += 1;
+        glm::vec2 next = head + getDirectionOffset(d);
 
-        if (next.x >= 0 && next.x < GRID_WIDTH && next.y >= 0 && next.y < GRID_HEIGHT && !blocked[(int)next.x][(int)next.y]) {
+        if (isInsideGrid(next) && !blocked[(int)next.x][(int)next.y]) {
             if (next == target) return d;
             q.push({next, d});
             blocked[(int)next.x][(int)next.y] = true;
@@ -33,13 +29,9 @@ Direction AIPathfinder::getNextMove(
     while (!q.empty()) {
         Node curr = q.front(); q.pop();
         for (Direction d : dirs) {
-            glm::vec2 next = curr.pos;
-            if (d == Direction::UP) next.y += 1;
-            else if (d == Direction::DOWN) next.y -= 1;
-            else if (d == Direction::LEFT) next.x -= 1;
-            else if (d == Direction::RIGHT) next.x += 1;
+            glm::vec2 next = curr.pos + getDirectionOffset(d);
             if (next == target) return curr.firstMove;
-            if (next.x >= 0 && next.x < GRID_WIDTH && next.y >= 0 && next.y < GRID_HEIGHT && !blocked[(int)next.x][(int)next.y]) {
+            if (isInsideGrid(next) && !blocked[(int)next.x][(int)next.y]) {
                 blocked[(int)next.x][(int)next.y] = true;
                 q.push({next, curr.firstMove});
             }

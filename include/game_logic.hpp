@@ -94,8 +94,6 @@ public:
     void setMenuSelection(int sel) { m_menuSelection = sel; }
     void toggleObstacles() { m_obstaclesEnabled = !m_obstaclesEnabled; }
 
-    Direction getAIDirection();
-
     // Test Helpers
     void debugSetSnake(const std::deque<glm::vec2>& s) { m_snake = s; }
     void debugSetFood(glm::vec2 f) { m_food = f; }
@@ -111,6 +109,9 @@ public:
     void debugSetObstaclesEnabled(bool e) { m_obstaclesEnabled = e; }
 
 private:
+    void updateTimers(float deltaTime);
+    void performTick();
+    bool isPositionOccupied(glm::vec2 pos, const std::vector<glm::vec2>& extraExclusions = {}) const;
     glm::vec2 getRandomEmptyPosition(const std::vector<glm::vec2>& extraExclusions);
     void generateNewFood();
     void generateBanana();
@@ -141,6 +142,7 @@ private:
     bool m_aiUsedThisRun = false;
     bool m_highScoreChecked = false;
     bool m_isNewTopScore = false;
+    std::mt19937 m_rng;
 };
 
 // Path Utility

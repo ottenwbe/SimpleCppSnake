@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include "game_logic.hpp"
+#include "ai_pathfinder.hpp"
 
 bool isWithinBounds(glm::vec2 pos, int width, int height) {
     return pos.x >= 0 && pos.x < width && pos.y >= 0 && pos.y < height;
@@ -180,18 +181,20 @@ TEST_CASE("AI Pathfinding", "[ai]") {
 
     SECTION("AI moves toward food - Up") {
         state.debugSetFood({5, 6});
-        CHECK(state.getAIDirection() == Direction::UP);
+        auto next = AIPathfinder::getNextMove(state.getSnake().front(), state.getFood(), state.getSnake(), state.getObstacles(), state.getDirection());
+        CHECK(next == Direction::UP);
     }
 
     SECTION("AI moves toward food - Right") {
         state.debugSetFood({6, 5});
-        CHECK(state.getAIDirection() == Direction::RIGHT);
+        auto next = AIPathfinder::getNextMove(state.getSnake().front(), state.getFood(), state.getSnake(), state.getObstacles(), state.getDirection());
+        CHECK(next == Direction::RIGHT);
     }
 
     SECTION("AI avoids obstacles") {
         state.debugSetFood({5, 6});
         state.debugSetObstacles({{5, 6}}); // Food blocked
-        Direction d = state.getAIDirection();
+        Direction d = AIPathfinder::getNextMove(state.getSnake().front(), state.getFood(), state.getSnake(), state.getObstacles(), state.getDirection());
         CHECK(d != Direction::LEFT); // Don't turn into self
         // Even if food is blocked, it should pick a safe move
     }
@@ -202,6 +205,7 @@ TEST_CASE("AI Pathfinding", "[ai]") {
         state.debugSetObstacles({{5, 6}, {6, 5}, {5, 4}}); 
         state.setDirection(Direction::RIGHT);
         // If trapped, return current direction and hope for the best
-        CHECK(state.getAIDirection() == Direction::RIGHT);
+        auto next = AIPathfinder::getNextMove(state.getSnake().front(), state.getFood(), state.getSnake(), state.getObstacles(), state.getDirection());
+        CHECK(next == Direction::RIGHT);
     }
 }

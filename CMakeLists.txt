@@ -48,6 +48,7 @@ find_file(SYSTEM_FONT_PATH
 add_executable(${PROJECT_NAME} 
     src/main.cpp 
     src/game_logic.cpp
+    src/ai_pathfinder.cpp
     src/renderer.cpp
 )
 
@@ -75,7 +76,11 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 )
 
 # --- Unit Tests ---
-add_executable(unit_tests tests/test_main.cpp src/game_logic.cpp)
+add_executable(unit_tests 
+    tests/test_main.cpp 
+    src/game_logic.cpp
+    src/ai_pathfinder.cpp
+)
 target_include_directories(unit_tests PRIVATE include)
 
 target_link_libraries(unit_tests PRIVATE 

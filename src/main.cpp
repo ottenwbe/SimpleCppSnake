@@ -6,6 +6,23 @@
 #include "game_logic.hpp"
 #include "renderer.hpp"
 #include <glm/glm.hpp>
+#include <unordered_map>
+
+class InputManager {
+public:
+    void update(GLFWwindow* window) {
+        for (auto& [key, state] : m_keyStates) {
+            bool isPressed = glfwGetKey(window, key) == GLFW_PRESS;
+            state.justPressed = isPressed && !state.down;
+            state.down = isPressed;
+        }
+    }
+    bool isJustPressed(int key) { return m_keyStates[key].justPressed; }
+    bool isDown(int key) { return m_keyStates[key].down; }
+private:
+    struct KeyState { bool down = false; bool justPressed = false; };
+    std::unordered_map<int, KeyState> m_keyStates;
+};
 
 class SnakeApplication {
 public:
@@ -71,16 +88,16 @@ public:
             m_gameState->update(currentTime, deltaTime);
 
             // 4. Rendering
-            updateViewportAndProjection();
-            renderFrame(currentTime);
+            int winW, winH;
+            updateViewportAndProjection(winW, winH);
+            m_renderer.render(*m_gameState, winW, winH);
 
             glfwSwapBuffers(m_window);
         }
     }
 
 private:
-    void updateViewportAndProjection() {
-        int winW, winH;
+    void updateViewportAndProjection(int& winW, int& winH) {
         glfwGetFramebufferSize(m_window, &winW, &winH);
         if (static_cast<unsigned int>(winW) != m_screenWidth || static_cast<unsigned int>(winH) != m_screenHeight) {
             m_screenWidth = winW;
@@ -90,35 +107,15 @@ private:
         }
     }
 
-    void renderFrame(float currentTime) {
-        int winW, winH;
-        glfwGetFramebufferSize(m_window, &winW, &winH);
-        m_renderer.render(*m_gameState, currentTime, winW, winH);
-    }
-
-    bool isKeyJustPressed(int key, bool& wasPressed) {
-        bool isPressed = glfwGetKey(m_window, key) == GLFW_PRESS;
-        bool result = isPressed && !wasPressed;
-        wasPressed = isPressed;
-        return result;
-    }
-
     void processInput() {
         glfwPollEvents();
+        m_input.update(m_window);
 
-        // Global Controls
-        if (isKeyJustPressed(GLFW_KEY_F11, m_inputStates.f11)) toggleFullscreen();
-        
-        if (isKeyJustPressed(GLFW_KEY_ESCAPE, m_inputStates.esc)) {
-            handleEscapeKey();
-        }
+        if (m_input.isJustPressed(GLFW_KEY_F11)) toggleFullscreen();
+        if (m_input.isJustPressed(GLFW_KEY_ESCAPE)) handleEscapeKey();
+        if (m_input.isJustPressed(GLFW_KEY_I)) m_gameState->toggleAI();
 
-        if (isKeyJustPressed(GLFW_KEY_I, m_inputStates.i)) m_gameState->toggleAI();
-
-        // Action Key (Space/Enter)
-        bool action = (glfwGetKey(m_window, GLFW_KEY_SPACE) == GLFW_PRESS) || (glfwGetKey(m_window, GLFW_KEY_ENTER) == GLFW_PRESS);
-        if (action && !m_inputStates.action) handleActionKey();
-        m_inputStates.action = action;
+        if (m_input.isJustPressed(GLFW_KEY_SPACE) || m_input.isJustPressed(GLFW_KEY_ENTER)) handleActionKey();
 
         // Contextual Controls
         if (m_gameState->isInMenu()) {
@@ -156,9 +153,9 @@ private:
 
     void handleMenuNavigation() {
         if (m_gameState->isShowingRules() || m_gameState->isShowingHighScores() || m_gameState->isShowingControls()) return;
-        if (isKeyJustPressed(GLFW_KEY_UP, m_inputStates.up)) 
+        if (m_input.isJustPressed(GLFW_KEY_UP)) 
             m_gameState->setMenuSelection((m_gameState->getMenuSelection() - 1 + 6) % 6);
-        if (isKeyJustPressed(GLFW_KEY_DOWN, m_inputStates.down)) 
+        if (m_input.isJustPressed(GLFW_KEY_DOWN)) 
             m_gameState->setMenuSelection((m_gameState->getMenuSelection() + 1) % 6);
     }
 
@@ -192,13 +189,10 @@ private:
     std::unique_ptr<GameState> m_gameState;
     unsigned int m_screenWidth, m_screenHeight;
     float m_lastFrameTime = 0.0f;
+    InputManager m_input;
 
     bool m_isFullscreen = true;
     glm::ivec2 m_windowedPos{100, 100}, m_windowedSize{1280, 720};
-
-    struct {
-        bool f11 = false, esc = false, i = false, action = false, up = false, down = false;
-    } m_inputStates;
 };
 
 int main() {

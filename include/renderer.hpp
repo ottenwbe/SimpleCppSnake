@@ -18,7 +18,7 @@ public:
     ~Renderer();
 
     bool init(unsigned int width, unsigned int height);
-    void render(GameState& state, float currentTime, int winW, int winH);
+    void render(GameState& state, int winW, int winH);
     void updateProjection(int width, int height);
 
 private:

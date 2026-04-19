@@ -100,7 +100,8 @@ static const char *fragmentShaderSource = R"glsl(
 static const char *borderVertexShaderSource = R"glsl(
     #version 330 core
     layout (location = 0) in vec2 aPos;
-    void main() { gl_Position = vec4(aPos, 0.0, 1.0); }
+    uniform mat4 transform;
+    void main() { gl_Position = transform * vec4(aPos, 0.0, 1.0); }
 )glsl";
 
 static const char *borderFragmentShaderSource = R"glsl(
@@ -155,6 +156,7 @@ bool Renderer::init(unsigned int width, unsigned int height) {
     m_snakeDirectionLoc = glGetUniformLocation(m_shaderProgram, "snakeDirection");
     m_timeLeftLoc = glGetUniformLocation(m_shaderProgram, "timeLeft");
     m_borderColorLoc = glGetUniformLocation(m_borderShaderProgram, "borderColor");
+    m_borderTransformLoc = glGetUniformLocation(m_borderShaderProgram, "transform");
     m_textColorLoc = glGetUniformLocation(m_textShaderProgram, "textColor");
     m_textProjLoc = glGetUniformLocation(m_textShaderProgram, "projection");
 
@@ -188,28 +190,54 @@ void Renderer::render(GameState& state, float /*currentTime*/, int winW, int win
     glClear(GL_COLOR_BUFFER_BIT);
 
     if (state.isInMenu()) {
-        renderText("SNAKE GAME", m_screenWidth / 2.0f - 150.0f, m_screenHeight / 2.0f + 200.0f, 1.2f, glm::vec3(0.0, 0.8, 0.2));
-        renderText("Top 5 High Scores:", m_screenWidth / 2.0f - 150.0f, m_screenHeight / 2.0f + 140.0f, 0.6f, glm::vec3(1.0, 0.9, 0.3));
-        const auto& entries = state.getHighScoreManager().getEntries();
-        for (size_t i = 0; i < entries.size(); ++i) {
-            std::string hs = std::to_string(i + 1) + ". " + std::to_string(entries[i].score) + 
-                             (entries[i].aiUsed ? " (AI)" : " (No AI)") + (entries[i].obstaclesEnabled ? " (Obs)" : " (No Obs)");
-            renderText(hs, m_screenWidth / 2.0f - 100.0f, m_screenHeight / 2.0f + 110.0f - i * 25.0f, 0.5f, glm::vec3(1.0, 0.9, 0.3));
-        }
-        glm::vec3 startColor = (state.getMenuSelection() == 0) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-        renderText("Start Game", m_screenWidth / 2.0f - 100.0f, m_screenHeight / 2.0f - 40.0f, 0.8f, startColor);
-        glm::vec3 obsColor = (state.getMenuSelection() == 1) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-        renderText("Obstacle Spawning: " + std::string(state.areObstaclesEnabled() ? "ON" : "OFF"), m_screenWidth / 2.0f - 180.0f, m_screenHeight / 2.0f - 80.0f, 0.6f, obsColor);
-        glm::vec3 aiColor = (state.getMenuSelection() == 2) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-        renderText("AI Auto-Pilot: " + std::string(state.isAIEnabled() ? "ON" : "OFF"), m_screenWidth / 2.0f - 140.0f, m_screenHeight / 2.0f - 120.0f, 0.6f, aiColor);
+        // Draw Menu Box
+        float boxW = 800.0f;
+        float boxH = 650.0f;
+        glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(m_screenWidth / 2.0f, m_screenHeight / 2.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(boxW / 2.0f, boxH / 2.0f, 1.0f));
         
-        renderText("Controls:", m_screenWidth / 2.0f - 50.0f, m_screenHeight / 2.0f - 170.0f, 0.6f, glm::vec3(1.0, 0.8, 0.2));
-        renderText("[Arrows] Move / Change Selection", m_screenWidth / 2.0f - 230.0f, m_screenHeight / 2.0f - 200.0f, 0.5f, glm::vec3(0.7));
-        renderText("[Space/Enter] Select / Pause", m_screenWidth / 2.0f - 190.0f, m_screenHeight / 2.0f - 225.0f, 0.5f, glm::vec3(0.7));
-        renderText("[Esc] Back / Quit", m_screenWidth / 2.0f - 120.0f, m_screenHeight / 2.0f - 250.0f, 0.5f, glm::vec3(0.7));
+        glUseProgram(m_borderShaderProgram);
+        glUniformMatrix4fv(m_borderTransformLoc, 1, GL_FALSE, glm::value_ptr(m_projection * model));
+        glUniform3f(m_borderColorLoc, 0.0f, 0.8f, 0.2f); // Green border for menu
+        glBindVertexArray(m_borderVAO);
+        glLineWidth(3.0f);
+        glDrawArrays(GL_LINE_LOOP, 0, 4);
+
+        if (state.isShowingRules()) {
+            renderTextCentered("GAME RULES", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(0.0, 0.8, 0.2));
+            renderTextCentered("1. Eat apples to grow and score points.", m_screenHeight / 2.0f + 120.0f, 0.5f, glm::vec3(1.0));
+            renderTextCentered("2. Avoid hitting walls, yourself, or obstacles.", m_screenHeight / 2.0f + 90.0f, 0.5f, glm::vec3(1.0));
+            renderTextCentered("3. Bananas (+2) and Golden Apples (+5) are timed!", m_screenHeight / 2.0f + 60.0f, 0.5f, glm::vec3(1.0));
+            renderTextCentered("4. The faster you eat, the faster the game gets.", m_screenHeight / 2.0f + 30.0f, 0.5f, glm::vec3(1.0));
+            renderTextCentered("5. AI Auto-Pilot can help, but it's not perfect.", m_screenHeight / 2.0f + 0.0f, 0.5f, glm::vec3(1.0));
+            renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 100.0f, 0.6f, glm::vec3(0.7));
+        } else {
+            renderTextCentered("CPP SIMPLE SNAKE", m_screenHeight / 2.0f + 200.0f, 1.2f, glm::vec3(0.0, 0.8, 0.2));
+            renderTextCentered("Top 5 High Scores:", m_screenHeight / 2.0f + 140.0f, 0.6f, glm::vec3(1.0, 0.9, 0.3));
+            const auto& entries = state.getHighScoreManager().getEntries();
+            for (size_t i = 0; i < entries.size(); ++i) {
+                std::string hs = std::to_string(i + 1) + ". " + std::to_string(entries[i].score) + 
+                                 (entries[i].aiUsed ? " (AI)" : " (No AI)") + (entries[i].obstaclesEnabled ? " (Obs)" : " (No Obs)");
+                renderTextCentered(hs, m_screenHeight / 2.0f + 110.0f - i * 25.0f, 0.5f, glm::vec3(1.0, 0.9, 0.3));
+            }
+            glm::vec3 startColor = (state.getMenuSelection() == 0) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
+            renderTextCentered("Start Game", m_screenHeight / 2.0f - 40.0f, 1.2f, startColor);
+            glm::vec3 obsColor = (state.getMenuSelection() == 1) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
+            renderTextCentered("Obstacle Spawning: " + std::string(state.areObstaclesEnabled() ? "ON" : "OFF"), m_screenHeight / 2.0f - 90.0f, 0.6f, obsColor);
+            glm::vec3 aiColor = (state.getMenuSelection() == 2) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
+            renderTextCentered("AI Auto-Pilot: " + std::string(state.isAIEnabled() ? "ON" : "OFF"), m_screenHeight / 2.0f - 130.0f, 0.6f, aiColor);
+            glm::vec3 rulesColor = (state.getMenuSelection() == 3) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
+            renderTextCentered("Rules", m_screenHeight / 2.0f - 175.0f, 0.8f, rulesColor);
+            
+            renderTextCentered("Controls:", m_screenHeight / 2.0f - 225.0f, 0.6f, glm::vec3(1.0, 0.8, 0.2));
+            renderTextCentered("[Arrows] Move / Change Selection", m_screenHeight / 2.0f - 255.0f, 0.5f, glm::vec3(0.7));
+            renderTextCentered("[Space/Enter] Select / Pause", m_screenHeight / 2.0f - 280.0f, 0.5f, glm::vec3(0.7));
+            renderTextCentered("[Esc] Back / Quit", m_screenHeight / 2.0f - 305.0f, 0.5f, glm::vec3(0.7));
+        }
     } else {
         glViewport(vpX, vpY, vpW, vpH);
         glUseProgram(m_borderShaderProgram);
+        glUniformMatrix4fv(m_borderTransformLoc, 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
         glBindVertexArray(m_borderVAO);
         glUniform3f(m_borderColorLoc, 0.5f, 0.5f, 0.5f);
         glLineWidth(5.0f);
@@ -272,22 +300,39 @@ void Renderer::render(GameState& state, float /*currentTime*/, int winW, int win
 
         if (state.isPaused()) {
             glUseProgram(m_borderShaderProgram); glBindVertexArray(m_pauseVAO);
+            glUniformMatrix4fv(m_borderTransformLoc, 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
             glUniform3f(m_borderColorLoc, 1.0f, 1.0f, 1.0f); glDrawArrays(GL_TRIANGLES, 0, 12);
-            renderText("PAUSED", m_screenWidth / 2.0f - 80.0f, m_screenHeight / 2.0f + 120.0f, 1.0f, glm::vec3(1.0));
-            renderText("Press SPACE to Resume", m_screenWidth / 2.0f - 200.0f, m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.8));
+            renderTextCentered("PAUSED", m_screenHeight / 2.0f + 120.0f, 1.0f, glm::vec3(1.0));
+            renderTextCentered("Press SPACE to Resume", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.8));
         }
     }
 
     if (state.isGameOver()) {
-        renderText("GAME OVER", m_screenWidth / 2.0f - 150.0f, m_screenHeight / 2.0f + 100.0f, 1.0f, glm::vec3(1.0, 0.2, 0.2));
-        if (state.isNewTopScore()) renderText("NEW TOP 5 SCORE!", m_screenWidth / 2.0f - 180.0f, m_screenHeight / 2.0f + 50.0f, 0.7f, glm::vec3(1.0, 0.8, 0.0));
-        renderText("SCORE: " + std::to_string(state.getScore()), m_screenWidth / 2.0f - 110.0f, m_screenHeight / 2.0f, 0.8f, glm::vec3(1.0));
-        renderText("Press Space to Restart", m_screenWidth / 2.0f - 200.0f, m_screenHeight / 2.0f - 60.0f, 0.7f, glm::vec3(0.8));
-        renderText("Press ESC to Menu", m_screenWidth / 2.0f - 160.0f, m_screenHeight / 2.0f - 100.0f, 0.6f, glm::vec3(0.6));
+        renderTextCentered("GAME OVER", m_screenHeight / 2.0f + 100.0f, 1.0f, glm::vec3(1.0, 0.2, 0.2));
+        if (state.isNewTopScore()) renderTextCentered("NEW TOP 5 SCORE!", m_screenHeight / 2.0f + 50.0f, 0.7f, glm::vec3(1.0, 0.8, 0.0));
+        renderTextCentered("SCORE: " + std::to_string(state.getScore()), m_screenHeight / 2.0f, 0.8f, glm::vec3(1.0));
+        renderTextCentered("Press Space to Restart", m_screenHeight / 2.0f - 60.0f, 0.7f, glm::vec3(0.8));
+        renderTextCentered("Press ESC to Menu", m_screenHeight / 2.0f - 100.0f, 0.6f, glm::vec3(0.6));
     }
 }
 
-void Renderer::renderText(std::string text, float x, float y, float scale, glm::vec3 color) {
+float Renderer::getTextWidth(const std::string& text, float scale) {
+    float width = 0.0f;
+    for (char c : text) {
+        auto it = m_characters.find(c);
+        if (it != m_characters.end()) {
+            width += (it->second.Advance >> 6) * scale;
+        }
+    }
+    return width;
+}
+
+void Renderer::renderTextCentered(const std::string& text, float y, float scale, glm::vec3 color) {
+    float x = (m_screenWidth - getTextWidth(text, scale)) / 2.0f;
+    renderText(text, x, y, scale, color);
+}
+
+void Renderer::renderText(const std::string& text, float x, float y, float scale, glm::vec3 color) {
     glUseProgram(m_textShaderProgram);
     glUniform3f(m_textColorLoc, color.x, color.y, color.z);
     glUniformMatrix4fv(m_textProjLoc, 1, GL_FALSE, glm::value_ptr(m_projection));

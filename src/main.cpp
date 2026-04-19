@@ -11,7 +11,7 @@ class SnakeApplication {
 public:
     SnakeApplication() {
         spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
-        spdlog::info("Initializing Snake Game...");
+        spdlog::info("Initializing CPP Simple Snake...");
         
         if (!glfwInit()) {
             throw std::runtime_error("Failed to initialize GLFW");
@@ -27,7 +27,7 @@ public:
         m_screenWidth = mode->width;
         m_screenHeight = mode->height;
 
-        m_window = glfwCreateWindow(m_screenWidth, m_screenHeight, "SimpleCppSnake", monitor, nullptr);
+        m_window = glfwCreateWindow(m_screenWidth, m_screenHeight, "CPP Simple Snake", monitor, nullptr);
         if (!m_window) {
             glfwTerminate();
             throw std::runtime_error("Failed to create GLFW window");
@@ -129,16 +129,20 @@ private:
     }
 
     void handleEscapeKey() {
-        if (m_gameState->isInMenu()) glfwSetWindowShouldClose(m_window, true);
+        if (m_gameState->isShowingRules()) {
+            m_gameState->setShowingRules(false);
+        } else if (m_gameState->isInMenu()) glfwSetWindowShouldClose(m_window, true);
         else { m_gameState->setInMenu(true); m_gameState->setShouldReset(true); }
     }
 
     void handleActionKey() {
         if (m_gameState->isInMenu()) {
+            if (m_gameState->isShowingRules()) return;
             int sel = m_gameState->getMenuSelection();
             if (sel == 0) { m_gameState->setInMenu(false); m_gameState->setShouldReset(true); }
             else if (sel == 1) m_gameState->toggleObstacles();
             else if (sel == 2) m_gameState->toggleAI();
+            else if (sel == 3) m_gameState->setShowingRules(true);
         } else if (m_gameState->isGameOver()) {
             m_gameState->setShouldReset(true);
         } else {
@@ -147,10 +151,11 @@ private:
     }
 
     void handleMenuNavigation() {
+        if (m_gameState->isShowingRules()) return;
         if (isKeyJustPressed(GLFW_KEY_UP, m_inputStates.up)) 
-            m_gameState->setMenuSelection((m_gameState->getMenuSelection() - 1 + 3) % 3);
+            m_gameState->setMenuSelection((m_gameState->getMenuSelection() - 1 + 4) % 4);
         if (isKeyJustPressed(GLFW_KEY_DOWN, m_inputStates.down)) 
-            m_gameState->setMenuSelection((m_gameState->getMenuSelection() + 1) % 3);
+            m_gameState->setMenuSelection((m_gameState->getMenuSelection() + 1) % 4);
     }
 
     void handleGameMovement() {

@@ -22,7 +22,9 @@ public:
     void updateProjection(int width, int height);
 
 private:
-    void renderText(std::string text, float x, float y, float scale, glm::vec3 color);
+    float getTextWidth(const std::string& text, float scale);
+    void renderText(const std::string& text, float x, float y, float scale, glm::vec3 color);
+    void renderTextCentered(const std::string& text, float y, float scale, glm::vec3 color);
     unsigned int createShaderProgram(const char* vertexSource, const char* fragmentSource);
     void setupBuffers();
     void setupFreetype();
@@ -34,7 +36,7 @@ private:
     
     // Uniform locations
     unsigned int m_gridCountLoc, m_colorLoc, m_isAppleLoc, m_isBananaLoc, m_isGoldenAppleLoc, m_isSnakeLoc, m_snakeDirectionLoc, m_borderColorLoc;
-    unsigned int m_textColorLoc, m_textProjLoc, m_timeLeftLoc;
+    unsigned int m_textColorLoc, m_textProjLoc, m_timeLeftLoc, m_borderTransformLoc;
 
     unsigned int m_screenWidth;
     unsigned int m_screenHeight;

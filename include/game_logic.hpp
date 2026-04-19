@@ -72,6 +72,7 @@ public:
     bool shouldReset() const { return m_shouldReset; }
     bool isPaused() const { return m_paused; }
     bool isInMenu() const { return m_inMenu; }
+    bool isShowingRules() const { return m_showingRules; }
     bool isAIEnabled() const { return m_aiEnabled; }
     int getScore() const { return m_score; }
     int getMenuSelection() const { return m_menuSelection; }
@@ -84,6 +85,7 @@ public:
     void setShouldReset(bool val) { m_shouldReset = val; }
     void togglePause() { if (!m_gameOver && !m_inMenu) m_paused = !m_paused; }
     void setInMenu(bool val) { m_inMenu = val; }
+    void setShowingRules(bool val) { m_showingRules = val; }
     void toggleAI() { m_aiEnabled = !m_aiEnabled; }
     void setMenuSelection(int sel) { m_menuSelection = sel; }
     void toggleObstacles() { m_obstaclesEnabled = !m_obstaclesEnabled; }
@@ -122,6 +124,7 @@ private:
     bool m_shouldReset = false;
     bool m_paused = false;
     bool m_inMenu = true;
+    bool m_showingRules = false;
     bool m_aiEnabled = false;
     int m_score = 0;
     float m_tickAccumulator = 0.0f;

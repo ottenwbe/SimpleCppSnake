@@ -1,11 +1,11 @@
-# SimpleCppSnake
+# CPP Simple Snake
 
 [![C++ CI](https://github.com/ottenwbe/SimpleCppSnake/actions/workflows/ci.yml/badge.svg)](https://github.com/ottenwbe/SimpleCppSnake/actions/workflows/ci.yml)
 
 <!-- Note about AI assistance -->
 > **Note:** This project was created with assistance of AI (Gemini Code Assist), with the purpose of testing some capabilites of AI assisted software development.
 
-A snake-like game implementation using modern C++17, OpenGL (Core Profile), GLFW, and FreeType for text rendering.
+A CPP Simple Snake game implementation using modern C++17, OpenGL (Core Profile), GLFW, and FreeType for text rendering.
 
 **Note: This project is specifically targeted for Linux.** It utilizes Linux-specific APIs (such as `/proc/self/exe`) for path resolution and is optimized for Linux-based build environments.
 
@@ -73,7 +73,7 @@ Now, simply run the build script from the project's root directory:
 After building, the executable will be located in the `build` directory.
 
 ```bash
-./SimpleCppSnake
+./CPPSimpleSnake
 ```
 
 ## Controls

@@ -476,7 +476,7 @@ int main()
         handleInput(window, *state);
 
         if (state->shouldReset) {
-            updateHighScores(*state);
+            state->updateHighScores();
             resetGame(*state);
         }
 

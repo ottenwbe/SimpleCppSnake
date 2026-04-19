@@ -58,10 +58,10 @@ bool HighScoreManager::update(int score, bool aiUsed, bool obstaclesEnabled) {
     return false;
 }
 
-void updateHighScores(GameState& state) {
-    if (state.highScoreChecked || state.score <= 0) return;
-    state.isNewTopScore = state.highScores.update(state.score, state.aiUsedThisRun, state.obstaclesEnabled);
-    state.highScoreChecked = true;
+void GameState::updateHighScores() {
+    if (highScoreChecked || score <= 0) return;
+    isNewTopScore = highScores.update(score, aiUsedThisRun, obstaclesEnabled);
+    highScoreChecked = true;
 }
 
 glm::vec2 getRandomEmptyPosition(const GameState& state, const std::vector<glm::vec2>& extraExclusions) {
@@ -248,5 +248,5 @@ void updateGame(GameState& state, float currentTime) {
         }
     }
 
-    if (state.gameOver && !state.highScoreChecked) updateHighScores(state);
+    if (state.gameOver && !state.highScoreChecked) state.updateHighScores();
 }

@@ -74,13 +74,12 @@ struct GameState {
     bool aiUsedThisRun = false;
     bool highScoreChecked = false;
     bool isNewTopScore = false;
+
+    void updateHighScores();
 };
 
 // Path Utility
 std::string getExecutableDir();
-
-// High Score I/O
-void updateHighScores(GameState& state);
 
 // Grid Logic
 glm::vec2 getRandomEmptyPosition(const GameState& state, const std::vector<glm::vec2>& extraExclusions);

@@ -105,7 +105,7 @@ TEST_CASE("Basic Game Logic", "[logic]") {
         state.obstaclesEnabled = true;
         state.aiUsedThisRun = false;
 
-        updateHighScores(state);
+        state.updateHighScores();
         REQUIRE(state.highScores.getEntries().size() >= 1);
         CHECK(state.highScores.getEntries()[0].score == 20);
         CHECK(state.isNewTopScore == true);

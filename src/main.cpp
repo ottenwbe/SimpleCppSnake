@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <string>
 #include <map>
+#include <memory>
 #include <fstream>
 #include <filesystem>
 
@@ -451,10 +452,10 @@ int main()
     glBindVertexArray(0);
 
     // Centralized Game State
-    GameState state;
-    state.highScorePath = (std::filesystem::path(getExecutableDir()) / "highscore.txt").string();
-    loadHighScore(state);
-    resetGame(state);
+    auto state = std::make_unique<GameState>();
+    state->highScorePath = (std::filesystem::path(getExecutableDir()) / "highscore.txt").string();
+    loadHighScore(*state);
+    resetGame(*state);
     
     // Setup text projection once
     glm::mat4 projection = glm::ortho(0.0f, static_cast<float>(SCR_WIDTH), 0.0f, static_cast<float>(SCR_HEIGHT));
@@ -472,14 +473,14 @@ int main()
     while (!glfwWindowShouldClose(window))
     {
         float currentTime = glfwGetTime();
-        handleInput(window, state);
+        handleInput(window, *state);
 
-        if (state.shouldReset) {
-            updateHighScores(state);
-            resetGame(state);
+        if (state->shouldReset) {
+            updateHighScores(*state);
+            resetGame(*state);
         }
 
-        updateGame(state, currentTime);
+        updateGame(*state, currentTime);
 
         // Render        
         int winW, winH;
@@ -511,23 +512,23 @@ int main()
         if (static_cast<unsigned int>(winW) != SCR_WIDTH || static_cast<unsigned int>(winH) != SCR_HEIGHT)
             updateUIProjection(winW, winH);
 
-        if (state.inMenu) {
+        if (state->inMenu) {
             RenderText(renderer, "SNAKE GAME", SCR_WIDTH / 2.0f - 150.0f, SCR_HEIGHT / 2.0f + 200.0f, 1.2f, glm::vec3(0.0, 0.8, 0.2));
 
             RenderText(renderer, "Top 5 High Scores:", SCR_WIDTH / 2.0f - 150.0f, SCR_HEIGHT / 2.0f + 140.0f, 0.6f, glm::vec3(1.0, 0.9, 0.3));
-            for (size_t i = 0; i < state.highScores.size(); ++i) {
-                std::string hs = std::to_string(i + 1) + ". " + std::to_string(state.highScores[i].score) + 
-                                 (state.highScores[i].aiUsed ? " (AI)" : " (No AI)") +
-                                 (state.highScores[i].obstaclesEnabled ? " (Obs)" : " (No Obs)");
+            for (size_t i = 0; i < state->highScores.size(); ++i) {
+                std::string hs = std::to_string(i + 1) + ". " + std::to_string(state->highScores[i].score) + 
+                                 (state->highScores[i].aiUsed ? " (AI)" : " (No AI)") +
+                                 (state->highScores[i].obstaclesEnabled ? " (Obs)" : " (No Obs)");
                 RenderText(renderer, hs, SCR_WIDTH / 2.0f - 100.0f, SCR_HEIGHT / 2.0f + 110.0f - i * 25.0f, 0.5f, glm::vec3(1.0, 0.9, 0.3));
             }
 
             // Interactive Menu Selection
-            glm::vec3 startColor = (state.menuSelection == 0) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
+            glm::vec3 startColor = (state->menuSelection == 0) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
             RenderText(renderer, "Start Game", SCR_WIDTH / 2.0f - 100.0f, SCR_HEIGHT / 2.0f - 40.0f, 0.8f, startColor);
 
-            glm::vec3 obsColor = (state.menuSelection == 1) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
-            std::string obsText = "Obstacle Spawning: " + std::string(state.obstaclesEnabled ? "ON" : "OFF");
+            glm::vec3 obsColor = (state->menuSelection == 1) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
+            std::string obsText = "Obstacle Spawning: " + std::string(state->obstaclesEnabled ? "ON" : "OFF");
             RenderText(renderer, obsText, SCR_WIDTH / 2.0f - 180.0f, SCR_HEIGHT / 2.0f - 80.0f, 0.6f, obsColor);
 
             RenderText(renderer, "Controls:", SCR_WIDTH / 2.0f - 50.0f, SCR_HEIGHT / 2.0f - 130.0f, 0.6f, glm::vec3(1.0, 0.8, 0.2));
@@ -553,15 +554,15 @@ int main()
             glUniform2f(renderer.gridCountLoc, (float)GRID_WIDTH, (float)GRID_HEIGHT);
 
             // Draw Snake
-            glm::vec3 color = state.gameOver ? glm::vec3(0.5f, 0.0f, 0.0f) : glm::vec3(0.0f, 0.8f, 0.2f);
+            glm::vec3 color = state->gameOver ? glm::vec3(0.5f, 0.0f, 0.0f) : glm::vec3(0.0f, 0.8f, 0.2f);
             glUniform3fv(renderer.colorLoc, 1, glm::value_ptr(color));
             glUniform1i(renderer.isAppleLoc, 0);
             glUniform1i(renderer.isBananaLoc, 0);
             glUniform1i(renderer.isGoldenAppleLoc, 0);
             glUniform1i(renderer.isSnakeLoc, 1);
-            glUniform1i(renderer.snakeDirectionLoc, static_cast<int>(state.snakeDirection));
+            glUniform1i(renderer.snakeDirectionLoc, static_cast<int>(state->snakeDirection));
             
-            std::vector<glm::vec2> snakeData(state.snake.begin(), state.snake.end());
+            std::vector<glm::vec2> snakeData(state->snake.begin(), state->snake.end());
             glBindBuffer(GL_ARRAY_BUFFER, renderer.instanceVBO);
             glBufferSubData(GL_ARRAY_BUFFER, 0, snakeData.size() * sizeof(glm::vec2), snakeData.data());
             glDrawArraysInstanced(GL_TRIANGLES, 0, 6, static_cast<unsigned int>(snakeData.size()));
@@ -574,23 +575,23 @@ int main()
             glUniform1i(renderer.isGoldenAppleLoc, 0);
             glUniform1i(renderer.isSnakeLoc, 0);
 
-            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), &state.food);
+            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), &state->food);
             glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1);
 
             // Draw Obstacles
-            if (!state.obstacles.empty()) {
+            if (!state->obstacles.empty()) {
                 color = glm::vec3(0.5f, 0.5f, 0.5f); // Grey obstacles
                 glUniform3fv(renderer.colorLoc, 1, glm::value_ptr(color));
                 glUniform1i(renderer.isAppleLoc, 0);
                 glUniform1i(renderer.isBananaLoc, 0);
                 glUniform1i(renderer.isGoldenAppleLoc, 0);
                 glUniform1i(renderer.isSnakeLoc, 0);
-                glBufferSubData(GL_ARRAY_BUFFER, 0, state.obstacles.size() * sizeof(glm::vec2), state.obstacles.data());
-                glDrawArraysInstanced(GL_TRIANGLES, 0, 6, static_cast<unsigned int>(state.obstacles.size()));
+                glBufferSubData(GL_ARRAY_BUFFER, 0, state->obstacles.size() * sizeof(glm::vec2), state->obstacles.data());
+                glDrawArraysInstanced(GL_TRIANGLES, 0, 6, static_cast<unsigned int>(state->obstacles.size()));
             }
 
             // Draw Banana
-            if (state.banana.active) {
+            if (state->banana.active) {
                 color = glm::vec3(1.0f, 0.9f, 0.1f); // Bright yellow for visibility
                 glUniform3fv(renderer.colorLoc, 1, glm::value_ptr(color));
                 glUniform1i(renderer.isAppleLoc, 0);
@@ -598,12 +599,12 @@ int main()
                 glUniform1i(renderer.isGoldenAppleLoc, 0);
                 glUniform1i(renderer.isSnakeLoc, 0);
 
-                glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), &state.banana.pos);
+                glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), &state->banana.pos);
                 glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1);
             }
 
             // Draw Golden Apple
-            if (state.goldenApple.active) {
+            if (state->goldenApple.active) {
                 color = glm::vec3(1.0f, 0.85f, 0.0f); // Gold
                 glUniform3fv(renderer.colorLoc, 1, glm::value_ptr(color));
                 glUniform1i(renderer.isAppleLoc, 0);
@@ -611,7 +612,7 @@ int main()
                 glUniform1i(renderer.isGoldenAppleLoc, 1);
                 glUniform1i(renderer.isSnakeLoc, 0);
 
-                glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), &state.goldenApple.pos);
+                glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), &state->goldenApple.pos);
                 glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1);
             }
 
@@ -619,41 +620,41 @@ int main()
             glViewport(0, 0, winW, winH);
 
             // Draw Score
-            std::string scoreStr = "Points: " + std::to_string(state.score);
+            std::string scoreStr = "Points: " + std::to_string(state->score);
             RenderText(renderer, scoreStr, 20.0f, SCR_HEIGHT - 40.0f, 0.5f, glm::vec3(1.0f, 1.0f, 1.0f));
 
             // Draw Banana Timer
-            if (state.banana.active && !state.gameOver && !state.paused) {
-                float timeLeft = 5.0f - (currentTime - state.banana.spawnTime);
+            if (state->banana.active && !state->gameOver && !state->paused) {
+                float timeLeft = 5.0f - (currentTime - state->banana.spawnTime);
                 if (timeLeft > 0) {
                     std::string timeStr = std::to_string((int)std::ceil(timeLeft)) + "s";
                     float cellW = (float)vpW / GRID_WIDTH;
                     float cellH = (float)vpH / GRID_HEIGHT;
                     // Position text above the banana
-                    float tx = vpX + state.banana.pos.x * cellW + cellW * 0.2f;
-                    float ty = vpY + (state.banana.pos.y + 0.8f) * cellH;
+                    float tx = vpX + state->banana.pos.x * cellW + cellW * 0.2f;
+                    float ty = vpY + (state->banana.pos.y + 0.8f) * cellH;
                     RenderText(renderer, timeStr, tx, ty, 0.4f, glm::vec3(1.0f, 1.0f, 0.0f));
                 }
             }
 
             // Draw Golden Apple Timer
-            if (state.goldenApple.active && !state.gameOver && !state.paused) {
-                float timeLeft = 7.0f - (currentTime - state.goldenApple.spawnTime);
+            if (state->goldenApple.active && !state->gameOver && !state->paused) {
+                float timeLeft = 7.0f - (currentTime - state->goldenApple.spawnTime);
                 if (timeLeft > 0) {
                     std::string timeStr = std::to_string((int)std::ceil(timeLeft)) + "s";
                     float cellW = (float)vpW / GRID_WIDTH;
                     float cellH = (float)vpH / GRID_HEIGHT;
-                    float tx = vpX + state.goldenApple.pos.x * cellW + cellW * 0.2f;
-                    float ty = vpY + (state.goldenApple.pos.y + 0.8f) * cellH;
+                    float tx = vpX + state->goldenApple.pos.x * cellW + cellW * 0.2f;
+                    float ty = vpY + (state->goldenApple.pos.y + 0.8f) * cellH;
                     RenderText(renderer, timeStr, tx, ty, 0.4f, glm::vec3(1.0f, 0.8f, 0.0f));
                 }
             }
 
-            if (state.aiEnabled && !state.gameOver) {
+            if (state->aiEnabled && !state->gameOver) {
                 RenderText(renderer, "AI AUTO-PILOT ENABLED [I]", SCR_WIDTH - 300.0f, SCR_HEIGHT - 40.0f, 0.4f, glm::vec3(0.0f, 1.0f, 1.0f));
             }
 
-            if (state.paused) {
+            if (state->paused) {
                 glUseProgram(renderer.borderShaderProgram);
                 glBindVertexArray(renderer.pauseVAO);
                 glUniform3f(renderer.borderColorLoc, 1.0f, 1.0f, 1.0f);
@@ -664,14 +665,14 @@ int main()
             }
         }
 
-        if (state.gameOver) {
+        if (state->gameOver) {
             RenderText(renderer, "GAME OVER", SCR_WIDTH / 2.0f - 150.0f, SCR_HEIGHT / 2.0f + 100.0f, 1.0f, glm::vec3(1.0, 0.2, 0.2));
             
-            if (state.isNewTopScore) {
+            if (state->isNewTopScore) {
                 RenderText(renderer, "NEW TOP 5 SCORE!", SCR_WIDTH / 2.0f - 180.0f, SCR_HEIGHT / 2.0f + 50.0f, 0.7f, glm::vec3(1.0, 0.8, 0.0));
             }
 
-            std::string scoreText = "SCORE: " + std::to_string(state.score);
+            std::string scoreText = "SCORE: " + std::to_string(state->score);
             RenderText(renderer, scoreText, SCR_WIDTH / 2.0f - 110.0f, SCR_HEIGHT / 2.0f, 0.8f, glm::vec3(1.0, 1.0, 1.0));
 
             RenderText(renderer, "Press Space to Restart", SCR_WIDTH / 2.0f - 200.0f, SCR_HEIGHT / 2.0f - 60.0f, 0.7f, glm::vec3(0.8, 0.8, 0.8));

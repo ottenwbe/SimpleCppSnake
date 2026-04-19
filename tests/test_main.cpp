@@ -66,12 +66,12 @@ TEST_CASE("Basic Game Logic", "[logic]") {
         state.togglePause();
         
         glm::vec2 head = state.getSnake().front();
-        state.update(1.0f); // Fast forward time
+        state.update(1.0f, 1.0f); // Fast forward time
         CHECK(state.getSnake().front() == head); // No movement while paused
         
         state.togglePause();
         state.setInMenu(true);
-        state.update(1.0f);
+        state.update(1.0f, 1.0f);
         CHECK(state.getSnake().front() == head); // No movement in menu
     }
 
@@ -81,10 +81,10 @@ TEST_CASE("Basic Game Logic", "[logic]") {
         float step = state.getTimeBetweenUpdates();
         
         glm::vec2 head = state.getSnake().front();
-        state.update(step * 0.5f);
+        state.update(step * 0.5f, step * 0.5f);
         CHECK(state.getSnake().front() == head); // Too early
         
-        state.update(step);
+        state.update(step, step * 0.5f);
         CHECK(state.getSnake().front() != head); // Should move
     }
 
@@ -92,20 +92,20 @@ TEST_CASE("Basic Game Logic", "[logic]") {
         state.reset();
         state.setInMenu(false);
         state.setDirection(Direction::RIGHT);
-        state.debugSetLastUpdateTime(0.0f);
-        state.debugSetNextBananaSpawnTime(100.0f); // Prevent respawn
+        state.debugSetTickAccumulator(0.0f);
+        state.debugSetBananaSpawnTimer(100.0f); // Prevent respawn
         float tick = state.getTimeBetweenUpdates() + 0.01f;
 
         // Normal Movement
         size_t initialSize = state.getSnake().size();
         state.debugSetFood({0, 0}); // Move food away
-        state.update(tick);
+        state.update(tick, tick);
         CHECK(state.getSnake().front() == glm::vec2(16, 7));
         CHECK(state.getSnake().size() == initialSize);
 
         // Eating Food (Growth)
         state.debugSetFood({17, 7});
-        state.update(tick * 2.0f);
+        state.update(tick * 2.0f, tick);
         CHECK(state.getSnake().front() == glm::vec2(17, 7));
         CHECK(state.getSnake().size() == initialSize + 1);
         CHECK(state.getScore() == 1);
@@ -115,7 +115,7 @@ TEST_CASE("Basic Game Logic", "[logic]") {
         state.reset();
         state.setInMenu(false);
         state.setDirection(Direction::RIGHT);
-        state.debugSetLastUpdateTime(0.0f);
+        state.debugSetTickAccumulator(0.0f);
         float tick = state.getTimeBetweenUpdates() + 0.01f;
         state.debugSetFood({0, 0}); // Move food away
         size_t initialSize = state.getSnake().size();
@@ -123,14 +123,14 @@ TEST_CASE("Basic Game Logic", "[logic]") {
         // Banana Growth and Points (+2)
         Banana b; b.active = true; b.pos = {16, 7};
         state.debugSetBanana(b);
-        state.update(tick);
+        state.update(tick, tick);
         CHECK(state.getScore() == 2);
         CHECK(state.getSnake().size() == initialSize + 1);
 
         // Golden Apple Growth and Points (+5)
         GoldenApple ga; ga.active = true; ga.pos = {17, 7};
         state.debugSetGoldenApple(ga);
-        state.update(tick * 2.0f);
+        state.update(tick * 2.0f, tick);
         CHECK(state.getScore() == 7); // 2 + 5
         CHECK(state.getSnake().size() == initialSize + 2);
     }
@@ -138,13 +138,13 @@ TEST_CASE("Basic Game Logic", "[logic]") {
     SECTION("Collision and Game Over") {
         state.reset();
         state.setInMenu(false);
-        state.debugSetLastUpdateTime(0.0f);
+        state.debugSetTickAccumulator(0.0f);
         float tick = state.getTimeBetweenUpdates() + 0.01f;
 
         // Wall Collision
         state.debugSetSnake({{29, 7}, {28, 7}, {27, 7}});
         state.setDirection(Direction::RIGHT);
-        state.update(tick);
+        state.update(tick, tick);
         CHECK(state.isGameOver() == true);
 
         // Obstacle Collision
@@ -152,7 +152,7 @@ TEST_CASE("Basic Game Logic", "[logic]") {
         state.setInMenu(false);
         state.debugSetObstacles({{16, 7}});
         state.setDirection(Direction::RIGHT);
-        state.update(tick);
+        state.update(tick, tick);
         CHECK(state.isGameOver() == true);
     }
 

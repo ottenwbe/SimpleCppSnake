@@ -115,7 +115,7 @@ void GameState::generateObstacle() {
     m_obstacles.push_back(getRandomEmptyPosition(others));
 }
 
-void GameState::reset(float currentTime) {
+void GameState::reset(float /*currentTime*/) {
     m_snake.clear();
     m_snake.push_front({GRID_WIDTH / 2, GRID_HEIGHT / 2});
     m_snake.push_back({GRID_WIDTH / 2 - 1, GRID_HEIGHT / 2});
@@ -127,18 +127,20 @@ void GameState::reset(float currentTime) {
     m_score = 0;
     m_obstacles.clear();
     m_timeBetweenUpdates = 0.1f;
-    m_lastUpdateTime = currentTime;
+    m_tickAccumulator = 0.0f;
     m_aiUsedThisRun = false;
     m_highScoreChecked = false;
     m_isNewTopScore = false;
-    m_banana.active = true;
-    m_banana.spawnTime = currentTime;
-    m_goldenApple.active = true;
-    m_goldenApple.spawnTime = currentTime;
+    m_banana.active = false;
+    m_banana.timeLeft = 0.0f;
+    m_goldenApple.active = false;
+    m_goldenApple.timeLeft = 0.0f;
     generateNewFood();
     generateBanana();
+    m_banana.timeLeft = 5.0f;
     generateGoldenApple();
-    m_nextBananaSpawnTime = currentTime;
+    m_goldenApple.timeLeft = 7.0f;
+    m_bananaSpawnTimer = 0.0f;
 }
 
 Direction GameState::getAIDirection() {
@@ -180,22 +182,40 @@ Direction GameState::getAIDirection() {
     return m_snakeDirection;
 }
 
-void GameState::update(float currentTime) {
-    // Handle Banana Expiry and Spawning
-    if (m_banana.active && (currentTime - m_banana.spawnTime) > 5.0f) {
-        m_banana.active = false;
-        m_nextBananaSpawnTime = currentTime + 10.0f;
+void GameState::update(float /*currentTime*/, float deltaTime) {
+    if (m_gameOver || m_paused || m_inMenu) return;
+
+    // 1. Update Durations and Timers (Variables that decay over time)
+    if (m_banana.active) {
+        m_banana.timeLeft -= deltaTime;
+        if (m_banana.timeLeft <= 0.0f) {
+            m_banana.active = false;
+            m_bananaSpawnTimer = 10.0f; // Seconds until next banana
+        }
+    } else {
+        m_bananaSpawnTimer -= deltaTime;
+        if (m_bananaSpawnTimer <= 0.0f) {
+            generateBanana();
+            m_banana.timeLeft = 5.0f;
+        }
     }
 
-    // Handle Golden Apple Expiry
-    if (m_goldenApple.active && (currentTime - m_goldenApple.spawnTime) > 7.0f) {
-        m_goldenApple.active = false;
+    if (m_goldenApple.active) {
+        m_goldenApple.timeLeft -= deltaTime;
+        if (m_goldenApple.timeLeft <= 0.0f) m_goldenApple.active = false;
+    } else {
+        static std::default_random_engine rd(std::random_device{}());
+        if (std::uniform_real_distribution<float>(0, 1)(rd) < 0.002f) {
+            generateGoldenApple();
+            m_goldenApple.timeLeft = 7.0f;
+        }
     }
 
-    // Fixed-timestep update
-    if (currentTime - m_lastUpdateTime >= m_timeBetweenUpdates && !m_gameOver && !m_paused && !m_inMenu)
+    // 2. Fixed-timestep Accumulator (Ensures simulation speed is constant)
+    m_tickAccumulator += deltaTime;
+    while (m_tickAccumulator >= m_timeBetweenUpdates)
     {
-        m_lastUpdateTime = currentTime;
+        m_tickAccumulator -= m_timeBetweenUpdates;
 
         if (m_aiEnabled) {
             m_snakeDirection = getAIDirection();
@@ -229,7 +249,7 @@ void GameState::update(float currentTime) {
             } else if (m_banana.active && newHead == m_banana.pos) {
                 m_score += 2;
                 m_banana.active = false;
-                m_nextBananaSpawnTime = currentTime + 10.0f;
+                m_bananaSpawnTimer = 10.0f;
                 if (m_obstaclesEnabled) generateObstacle();
             } else if (m_goldenApple.active && newHead == m_goldenApple.pos) {
                 m_score += 5;
@@ -239,18 +259,6 @@ void GameState::update(float currentTime) {
                 m_snake.pop_back();
             }
 
-            // Spawning Logic
-            if (!m_banana.active && currentTime >= m_nextBananaSpawnTime && !m_paused) {
-                generateBanana();
-                m_banana.spawnTime = currentTime;
-            }
-            if (!m_goldenApple.active && !m_paused) {
-                static std::default_random_engine rd(std::random_device{}());
-                if (std::uniform_real_distribution<float>(0,1)(rd) < 0.002f) {
-                    generateGoldenApple();
-                    m_goldenApple.spawnTime = currentTime;
-                }
-            }
         }
     }
 

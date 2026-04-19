@@ -1,30 +1,11 @@
 #define GL_GLEXT_PROTOTYPES
 #include <GLFW/glfw3.h>
 #include <spdlog/spdlog.h>
-
-#include <ft2build.h>
-#include FT_FREETYPE_H
-
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-
-#include <iostream>
-#include <vector>
-#include <deque>
-#include <queue>
-#include <random>
-#include <algorithm>
-#include <string>
-#include <map>
 #include <memory>
-#include <fstream>
 #include <filesystem>
-
-#include <unistd.h>
-#include <limits.h>
 #include "game_logic.hpp"
 #include "renderer.hpp"
+#include <glm/glm.hpp>
 
 class SnakeApplication {
 public:
@@ -61,7 +42,9 @@ public:
         m_gameState = std::make_unique<GameState>();
         m_gameState->getHighScoreManager().setPath((std::filesystem::path(getExecutableDir()) / "highscore.txt").string());
         m_gameState->getHighScoreManager().load();
-        m_gameState->reset(static_cast<float>(glfwGetTime()));
+        float now = static_cast<float>(glfwGetTime());
+        m_lastFrameTime = now;
+        m_gameState->reset(now);
     }
 
     ~SnakeApplication() {
@@ -72,21 +55,25 @@ public:
     void run() {
         while (!glfwWindowShouldClose(m_window)) {
             float currentTime = static_cast<float>(glfwGetTime());
-            
+            float deltaTime = currentTime - m_lastFrameTime;
+            m_lastFrameTime = currentTime;
+
+            // 1. Process User Input
             processInput();
 
+            // 2. State Management (Reset logic)
             if (m_gameState->shouldReset()) {
                 m_gameState->updateHighScores();
                 m_gameState->reset(currentTime);
             }
 
-            m_gameState->update(currentTime);
-            updateViewportAndProjection();
+            // 3. Game Logic Update
+            m_gameState->update(currentTime, deltaTime);
 
-            int winW, winH;
-            glfwGetFramebufferSize(m_window, &winW, &winH);
-            m_renderer.render(*m_gameState, currentTime, winW, winH);
-            
+            // 4. Rendering
+            updateViewportAndProjection();
+            renderFrame(currentTime);
+
             glfwSwapBuffers(m_window);
         }
     }
@@ -103,6 +90,12 @@ private:
         }
     }
 
+    void renderFrame(float currentTime) {
+        int winW, winH;
+        glfwGetFramebufferSize(m_window, &winW, &winH);
+        m_renderer.render(*m_gameState, currentTime, winW, winH);
+    }
+
     bool isKeyJustPressed(int key, bool& wasPressed) {
         bool isPressed = glfwGetKey(m_window, key) == GLFW_PRESS;
         bool result = isPressed && !wasPressed;
@@ -113,30 +106,31 @@ private:
     void processInput() {
         glfwPollEvents();
 
-        if (isKeyJustPressed(GLFW_KEY_F11, m_inputStates.f11)) {
-            toggleFullscreen();
-        }
-
+        // Global Controls
+        if (isKeyJustPressed(GLFW_KEY_F11, m_inputStates.f11)) toggleFullscreen();
+        
         if (isKeyJustPressed(GLFW_KEY_ESCAPE, m_inputStates.esc)) {
-            if (m_gameState->isInMenu()) glfwSetWindowShouldClose(m_window, true);
-            else { m_gameState->setInMenu(true); m_gameState->setShouldReset(true); }
+            handleEscapeKey();
         }
 
-        if (isKeyJustPressed(GLFW_KEY_I, m_inputStates.i)) {
-            m_gameState->toggleAI();
-        }
+        if (isKeyJustPressed(GLFW_KEY_I, m_inputStates.i)) m_gameState->toggleAI();
 
+        // Action Key (Space/Enter)
         bool action = (glfwGetKey(m_window, GLFW_KEY_SPACE) == GLFW_PRESS) || (glfwGetKey(m_window, GLFW_KEY_ENTER) == GLFW_PRESS);
-        if (action && !m_inputStates.action) {
-            handleActionKey();
-        }
+        if (action && !m_inputStates.action) handleActionKey();
         m_inputStates.action = action;
 
+        // Contextual Controls
         if (m_gameState->isInMenu()) {
             handleMenuNavigation();
         } else if (!m_gameState->isAIEnabled() && !m_gameState->isGameOver() && !m_gameState->isPaused()) {
             handleGameMovement();
         }
+    }
+
+    void handleEscapeKey() {
+        if (m_gameState->isInMenu()) glfwSetWindowShouldClose(m_window, true);
+        else { m_gameState->setInMenu(true); m_gameState->setShouldReset(true); }
     }
 
     void handleActionKey() {
@@ -188,6 +182,7 @@ private:
     Renderer m_renderer;
     std::unique_ptr<GameState> m_gameState;
     unsigned int m_screenWidth, m_screenHeight;
+    float m_lastFrameTime = 0.0f;
 
     bool m_isFullscreen = true;
     glm::ivec2 m_windowedPos{100, 100}, m_windowedSize{1280, 720};

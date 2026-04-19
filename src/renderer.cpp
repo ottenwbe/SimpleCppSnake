@@ -170,7 +170,7 @@ void Renderer::updateProjection(int width, int height) {
     m_projection = glm::ortho(0.0f, static_cast<float>(width), 0.0f, static_cast<float>(height));
 }
 
-void Renderer::render(GameState& state, float currentTime, int winW, int winH) {
+void Renderer::render(GameState& state, float /*currentTime*/, int winW, int winH) {
     float targetRatio = (float)GRID_WIDTH / (float)GRID_HEIGHT;
     float windowRatio = (float)winW / (float)winH;
     int vpX, vpY, vpW, vpH;
@@ -250,7 +250,7 @@ void Renderer::render(GameState& state, float currentTime, int winW, int winH) {
         const auto& banana = state.getBanana();
         if (banana.active) {
             glUniform3f(m_colorLoc, 1.0f, 0.9f, 0.1f); glUniform1i(m_isBananaLoc, 1);
-            float t = 1.0f - (currentTime - banana.spawnTime) / 5.0f;
+            float t = std::max(0.0f, banana.timeLeft / 5.0f);
             glUniform1f(m_timeLeftLoc, std::max(0.0f, t));
             glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), glm::value_ptr(banana.pos));
             glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1); glUniform1i(m_isBananaLoc, 0); glUniform1f(m_timeLeftLoc, 1.0f);
@@ -258,7 +258,7 @@ void Renderer::render(GameState& state, float currentTime, int winW, int winH) {
         const auto& gApple = state.getGoldenApple();
         if (gApple.active) {
             glUniform3f(m_colorLoc, 1.0f, 0.85f, 0.0f); glUniform1i(m_isGoldenAppleLoc, 1);
-            float t = 1.0f - (currentTime - gApple.spawnTime) / 7.0f;
+            float t = std::max(0.0f, gApple.timeLeft / 7.0f);
             glUniform1f(m_timeLeftLoc, std::max(0.0f, t));
             glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec2), glm::value_ptr(gApple.pos));
             glDrawArraysInstanced(GL_TRIANGLES, 0, 6, 1); glUniform1i(m_isGoldenAppleLoc, 0); glUniform1f(m_timeLeftLoc, 1.0f);

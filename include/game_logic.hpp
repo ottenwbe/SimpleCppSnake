@@ -20,13 +20,13 @@ enum class Direction { UP, DOWN, LEFT, RIGHT };
 
 struct Banana {
     glm::vec2 pos;
-    float spawnTime = 0.0f;
+    float timeLeft = 0.0f;
     bool active = false;
 };
 
 struct GoldenApple {
     glm::vec2 pos;
-    float spawnTime = 0.0f;
+    float timeLeft = 0.0f;
     bool active = false;
 };
 
@@ -57,7 +57,7 @@ public:
     GameState();
 
     void reset(float currentTime = 0.0f);
-    void update(float currentTime);
+    void update(float currentTime, float deltaTime);
     void updateHighScores();
 
     // Getters for Rendering and UI
@@ -94,8 +94,8 @@ public:
     void debugSetSnake(const std::deque<glm::vec2>& s) { m_snake = s; }
     void debugSetFood(glm::vec2 f) { m_food = f; }
     void debugSetObstacles(const std::vector<glm::vec2>& o) { m_obstacles = o; }
-    void debugSetLastUpdateTime(float t) { m_lastUpdateTime = t; }
-    void debugSetNextBananaSpawnTime(float t) { m_nextBananaSpawnTime = t; }
+    void debugSetTickAccumulator(float t) { m_tickAccumulator = t; }
+    void debugSetBananaSpawnTimer(float t) { m_bananaSpawnTimer = t; }
     void debugSetBanana(const Banana& b) { m_banana = b; }
     void debugSetGoldenApple(const GoldenApple& g) { m_goldenApple = g; }
     void debugSetScore(int s) { m_score = s; }
@@ -117,14 +117,14 @@ private:
     std::vector<glm::vec2> m_obstacles;
     Banana m_banana;
     GoldenApple m_goldenApple;
-    float m_nextBananaSpawnTime = 0.0f;
+    float m_bananaSpawnTimer = 0.0f;
     bool m_gameOver = false;
     bool m_shouldReset = false;
     bool m_paused = false;
     bool m_inMenu = true;
     bool m_aiEnabled = false;
     int m_score = 0;
-    float m_lastUpdateTime = 0.0f;
+    float m_tickAccumulator = 0.0f;
     float m_timeBetweenUpdates = 0.1f;
     HighScoreManager m_highScores;
     bool m_obstaclesEnabled = true;

@@ -23,6 +23,7 @@ namespace Config {
 }
 
 enum class Direction { UP, DOWN, LEFT, RIGHT };
+enum class GameScene { Menu, Rules, HighScores, Controls, Settings, Gameplay };
 
 inline glm::vec2 getDirectionOffset(Direction dir) {
     switch (dir) {
@@ -69,10 +70,7 @@ public:
     bool isGameOver() const { return m_gameOver; }
     bool shouldReset() const { return m_shouldReset; }
     bool isPaused() const { return m_paused; }
-    bool isInMenu() const { return m_inMenu; }
-    bool isShowingRules() const { return m_showingRules; }
-    bool isShowingHighScores() const { return m_showingHighScores; }
-    bool isShowingControls() const { return m_showingControls; }
+    GameScene getScene() const { return m_currentScene; }
     bool isAIEnabled() const { return m_aiEnabled; }
     int getScore() const { return m_score; }
     int getMenuSelection() const { return m_menuSelection; }
@@ -83,15 +81,14 @@ public:
     // Mutators for Input Handling
     void setDirection(Direction dir) { if (!m_paused && !m_gameOver) m_snakeDirection = dir; }
     void setShouldReset(bool val) { m_shouldReset = val; }
-    void togglePause() { if (!m_gameOver && !m_inMenu) m_paused = !m_paused; }
-    void setInMenu(bool val) { m_inMenu = val; }
-    void setShowingRules(bool val) { m_showingRules = val; }
-    void setShowingHighScores(bool val) { m_showingHighScores = val; }
-    void setShowingControls(bool val) { m_showingControls = val; }
+    void togglePause() { if (!m_gameOver && m_currentScene == GameScene::Gameplay) m_paused = !m_paused; }
+    void setScene(GameScene scene) { m_currentScene = scene; }
     void toggleAI() { m_aiEnabled = !m_aiEnabled; }
     void setMenuSelection(int sel) { m_menuSelection = sel; }
     void toggleObstacles() { m_obstaclesEnabled = !m_obstaclesEnabled; }
 
+    int getInitialSpeedSetting() const { return m_initialSpeedSetting; }
+    void setInitialSpeedSetting(int speed) { m_initialSpeedSetting = speed; }
     // Test Helpers
     void debugSetSnake(const std::deque<glm::vec2>& s) { m_snake = s; }
     void debugSetFood(glm::vec2 f) { m_food = f; }
@@ -126,10 +123,7 @@ private:
     bool m_gameOver = false;
     bool m_shouldReset = false;
     bool m_paused = false;
-    bool m_inMenu = true;
-    bool m_showingRules = false;
-    bool m_showingHighScores = false;
-    bool m_showingControls = false;
+    GameScene m_currentScene = GameScene::Menu;
     bool m_aiEnabled = false;
     int m_score = 0;
     float m_tickAccumulator = 0.0f;
@@ -138,6 +132,7 @@ private:
     bool m_obstaclesEnabled = true;
     int m_menuSelection = 0;
     bool m_aiUsedThisRun = false;
+    int m_initialSpeedSetting = 1; // 0: Easy, 1: Medium, 2: Hard
     bool m_highScoreChecked = false;
     bool m_isNewTopScore = false;
     std::mt19937 m_rng;

@@ -62,7 +62,7 @@ void Renderer::render(GameState& state, int winW, int winH) {
     glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    if (state.isInMenu()) {
+    if (state.getScene() != GameScene::Gameplay) {
         renderMenu(state);
     } else {
         renderGameWorld(state, m_vpX, m_vpY, m_vpW, m_vpH);
@@ -82,7 +82,8 @@ void Renderer::renderMenu(GameState& state) {
     glLineWidth(3.0f);
     glDrawArrays(GL_LINE_LOOP, 0, 4);
 
-    if (state.isShowingRules()) {
+    switch(state.getScene()) {
+    case GameScene::Rules:
         renderTextCentered("GAME RULES", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(0.0, 0.8, 0.2));
         renderTextCentered("1. Eat apples to grow and score points.", m_screenHeight / 2.0f + 120.0f, 0.5f, glm::vec3(1.0));
         renderTextCentered("2. Avoid hitting walls, yourself, or obstacles.", m_screenHeight / 2.0f + 90.0f, 0.5f, glm::vec3(1.0));
@@ -90,20 +91,24 @@ void Renderer::renderMenu(GameState& state) {
         renderTextCentered("4. The faster you eat, the faster the game gets.", m_screenHeight / 2.0f + 30.0f, 0.5f, glm::vec3(1.0));
         renderTextCentered("5. AI Auto-Pilot can help, but it's not perfect.", m_screenHeight / 2.0f + 0.0f, 0.5f, glm::vec3(1.0));
         renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 100.0f, 0.6f, glm::vec3(0.7));
-    } else if (state.isShowingHighScores()) {
+        break;
+    case GameScene::HighScores:
         renderTextCentered("TOP 5 HIGH SCORES", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(1.0, 0.9, 0.3));
-        const auto& entries = state.getHighScoreManager().getEntries();
+        {
+            const auto& entries = state.getHighScoreManager().getEntries();
         if (entries.empty()) {
             renderTextCentered("No scores yet. Go play!", m_screenHeight / 2.0f + 50.0f, 0.6f, glm::vec3(0.7));
         } else {
             for (size_t i = 0; i < entries.size(); ++i) {
-                std::string hs = std::to_string(i + 1) + ". " + std::to_string(entries[i].score) + 
+                    std::string hs = std::to_string(i + 1) + ". " + std::to_string(entries[i].score) +
                                  (entries[i].aiUsed ? " (AI)" : " (No AI)") + (entries[i].obstaclesEnabled ? " (Obs)" : " (No Obs)");
                 renderTextCentered(hs, m_screenHeight / 2.0f + 110.0f - i * 40.0f, 0.6f, glm::vec3(1.0, 0.9, 0.3));
             }
         }
+        }
         renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.7));
-    } else if (state.isShowingControls()) {
+        break;
+    case GameScene::Controls:
         renderTextCentered("GAME CONTROLS", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(0.0, 0.8, 0.2));
         renderTextCentered("Arrow Keys: Move Snake / Navigate Menu", m_screenHeight / 2.0f + 120.0f, 0.5f, glm::vec3(1.0));
         renderTextCentered("Space / Enter: Select / Pause Game", m_screenHeight / 2.0f + 80.0f, 0.5f, glm::vec3(1.0));
@@ -111,7 +116,21 @@ void Renderer::renderMenu(GameState& state) {
         renderTextCentered("F11: Toggle Fullscreen", m_screenHeight / 2.0f + 0.0f, 0.5f, glm::vec3(1.0));
         renderTextCentered("I: Toggle AI Auto-Pilot", m_screenHeight / 2.0f - 40.0f, 0.5f, glm::vec3(1.0));
         renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.7));
-    } else {
+        break;
+    case GameScene::Settings:
+    {
+        renderTextCentered("SETTINGS", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(0.0, 0.8, 0.2));
+        std::string speedText = "Initial Speed: ";
+        if (state.getInitialSpeedSetting() == 0) speedText += "Easy";
+        else if (state.getInitialSpeedSetting() == 1) speedText += "Medium";
+        else speedText += "Hard";
+        renderTextCentered(speedText, m_screenHeight / 2.0f + 50.0f, 0.7f, glm::vec3(1.0));
+        renderTextCentered("Use LEFT/RIGHT to change", m_screenHeight / 2.0f + 0.0f, 0.5f, glm::vec3(0.7));
+        renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.7));
+        break;
+    }
+    case GameScene::Menu:
+    {
         renderTextCentered("VIPERPATH", m_screenHeight / 2.0f + 200.0f, 1.2f, glm::vec3(0.0, 0.8, 0.2));
         glm::vec3 startColor = (state.getMenuSelection() == 0) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
         renderTextCentered("Start Game", m_screenHeight / 2.0f - 40.0f, 1.2f, startColor);
@@ -127,6 +146,11 @@ void Renderer::renderMenu(GameState& state) {
         renderTextCentered("Controls", m_screenHeight / 2.0f - 265.0f, 0.8f, ctrlBtnColor);
         glm::vec3 quitBtnColor = (state.getMenuSelection() == 6) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0, 1.0, 1.0);
         renderTextCentered("Quit Game", m_screenHeight / 2.0f - 310.0f, 0.8f, quitBtnColor);
+        break;
+    } // End of GameScene::Menu scope
+
+    case GameScene::Gameplay:
+        break;
     }
 }
 

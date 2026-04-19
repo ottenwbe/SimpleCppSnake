@@ -101,14 +101,14 @@ private:
         m_input.update(m_window, {GLFW_KEY_F11, GLFW_KEY_ESCAPE, GLFW_KEY_I, GLFW_KEY_SPACE, 
                                   GLFW_KEY_ENTER, GLFW_KEY_UP, GLFW_KEY_DOWN, GLFW_KEY_LEFT, GLFW_KEY_RIGHT});
 
-        if (m_input.isJustPressed(GLFW_KEY_F11)) toggleFullscreen();
-        if (m_input.isJustPressed(GLFW_KEY_ESCAPE)) handleEscapeKey();
+        if (m_input.isJustPressed(GLFW_KEY_F11)) toggleFullscreen(); // Global control
+        if (m_input.isJustPressed(GLFW_KEY_ESCAPE)) handleEscapeKey(); // Global control
         if (m_input.isJustPressed(GLFW_KEY_I)) m_gameState->toggleAI();
 
         if (m_input.isJustPressed(GLFW_KEY_SPACE) || m_input.isJustPressed(GLFW_KEY_ENTER)) handleActionKey();
 
         // Contextual Controls
-        if (m_gameState->isInMenu()) {
+        if (m_gameState->getScene() != GameScene::Gameplay) {
             handleMenuNavigation();
         } else if (!m_gameState->isAIEnabled() && !m_gameState->isGameOver() && !m_gameState->isPaused()) {
             handleGameMovement();
@@ -116,38 +116,53 @@ private:
     }
 
     void handleEscapeKey() {
-        if (m_gameState->isShowingRules() || m_gameState->isShowingHighScores() || m_gameState->isShowingControls()) {
-            m_gameState->setShowingRules(false);
-            m_gameState->setShowingHighScores(false);
-            m_gameState->setShowingControls(false);
-        } else if (m_gameState->isInMenu()) glfwSetWindowShouldClose(m_window, true);
-        else { m_gameState->setInMenu(true); m_gameState->setShouldReset(true); }
+        if (m_gameState->getScene() == GameScene::Settings ||
+            m_gameState->getScene() == GameScene::Rules ||
+            m_gameState->getScene() == GameScene::HighScores ||
+            m_gameState->getScene() == GameScene::Controls) {
+            m_gameState->setScene(GameScene::Menu);
+        } else if (m_gameState->getScene() == GameScene::Menu) glfwSetWindowShouldClose(m_window, true);
+        else { m_gameState->setScene(GameScene::Menu); m_gameState->setShouldReset(true); }
     }
 
     void handleActionKey() {
-        if (m_gameState->isInMenu()) {
-            if (m_gameState->isShowingRules() || m_gameState->isShowingHighScores() || m_gameState->isShowingControls()) return;
+        if (m_gameState->getScene() == GameScene::Gameplay) {
+            if (m_gameState->isGameOver()) {
+                m_gameState->setShouldReset(true);
+            } else {
+                m_gameState->togglePause();
+            }
+        } else if (m_gameState->getScene() == GameScene::Menu) {
             int sel = m_gameState->getMenuSelection();
-            if (sel == 0) { m_gameState->setInMenu(false); m_gameState->setShouldReset(true); }
+            if (sel == 0) { m_gameState->setScene(GameScene::Gameplay); m_gameState->setShouldReset(true); }
             else if (sel == 1) m_gameState->toggleObstacles();
             else if (sel == 2) m_gameState->toggleAI();
-            else if (sel == 3) m_gameState->setShowingRules(true);
-            else if (sel == 4) m_gameState->setShowingHighScores(true);
-            else if (sel == 5) m_gameState->setShowingControls(true);
-            else if (sel == 6) glfwSetWindowShouldClose(m_window, true);
-        } else if (m_gameState->isGameOver()) {
-            m_gameState->setShouldReset(true);
-        } else {
-            m_gameState->togglePause();
+            else if (sel == 3) m_gameState->setScene(GameScene::Rules);
+            else if (sel == 4) m_gameState->setScene(GameScene::HighScores);
+            else if (sel == 5) m_gameState->setScene(GameScene::Controls);
+            else if (sel == 6) m_gameState->setScene(GameScene::Settings); // New Settings option
+            else if (sel == 7) glfwSetWindowShouldClose(m_window, true); // Quit is now 7
+        } else if (m_gameState->getScene() == GameScene::Settings) {
+            // No action key needed for settings, changes are made with left/right
+            // This block is mostly to prevent unintended actions if space/enter is pressed
         }
     }
 
     void handleMenuNavigation() {
-        if (m_gameState->isShowingRules() || m_gameState->isShowingHighScores() || m_gameState->isShowingControls()) return;
-        if (m_input.isJustPressed(GLFW_KEY_UP))
-            m_gameState->setMenuSelection((m_gameState->getMenuSelection() - 1 + 7) % 7);
-        if (m_input.isJustPressed(GLFW_KEY_DOWN))
-            m_gameState->setMenuSelection((m_gameState->getMenuSelection() + 1) % 7);
+        if (m_gameState->getScene() == GameScene::Menu) {
+            if (m_input.isJustPressed(GLFW_KEY_UP))
+                m_gameState->setMenuSelection((m_gameState->getMenuSelection() - 1 + 8) % 8); // 8 total menu items now
+            if (m_input.isJustPressed(GLFW_KEY_DOWN))
+                m_gameState->setMenuSelection((m_gameState->getMenuSelection() + 1) % 8);
+        } else if (m_gameState->getScene() == GameScene::Settings) {
+            int currentSpeed = m_gameState->getInitialSpeedSetting();
+            if (m_input.isJustPressed(GLFW_KEY_LEFT)) {
+                m_gameState->setInitialSpeedSetting(std::max(0, currentSpeed - 1));
+            }
+            if (m_input.isJustPressed(GLFW_KEY_RIGHT)) {
+                m_gameState->setInitialSpeedSetting(std::min(2, currentSpeed + 1));
+            }
+        }
     }
 
     void handleGameMovement() {

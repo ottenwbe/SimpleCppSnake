@@ -83,12 +83,15 @@ void GameState::reset(float /*currentTime*/) {
     m_gameOver = false;
     m_shouldReset = false;
     m_paused = false;
-    m_showingRules = false;
-    m_showingHighScores = false;
-    m_showingControls = false;
     m_score = 0;
     m_obstacles.clear();
-    m_timeBetweenUpdates = Config::INITIAL_STEP_TIME;
+    if (m_initialSpeedSetting == 0) { // Easy
+        m_timeBetweenUpdates = Config::INITIAL_STEP_TIME * 1.5f;
+    } else if (m_initialSpeedSetting == 1) { // Medium
+        m_timeBetweenUpdates = Config::INITIAL_STEP_TIME;
+    } else { // Hard
+        m_timeBetweenUpdates = Config::INITIAL_STEP_TIME * 0.7f;
+    }
     m_tickAccumulator = 0.0f;
     m_aiUsedThisRun = false;
     m_highScoreChecked = false;
@@ -171,7 +174,7 @@ void GameState::performTick() {
 }
 
 void GameState::update(float /*currentTime*/, float deltaTime) {
-    if (m_gameOver || m_paused || m_inMenu) return;
+    if (m_gameOver || m_paused || m_currentScene != GameScene::Gameplay) return;
 
     updateTimers(deltaTime);
 

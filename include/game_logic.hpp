@@ -74,6 +74,7 @@ public:
     bool isInMenu() const { return m_inMenu; }
     bool isShowingRules() const { return m_showingRules; }
     bool isShowingHighScores() const { return m_showingHighScores; }
+    bool isShowingControls() const { return m_showingControls; }
     bool isAIEnabled() const { return m_aiEnabled; }
     int getScore() const { return m_score; }
     int getMenuSelection() const { return m_menuSelection; }
@@ -88,6 +89,7 @@ public:
     void setInMenu(bool val) { m_inMenu = val; }
     void setShowingRules(bool val) { m_showingRules = val; }
     void setShowingHighScores(bool val) { m_showingHighScores = val; }
+    void setShowingControls(bool val) { m_showingControls = val; }
     void toggleAI() { m_aiEnabled = !m_aiEnabled; }
     void setMenuSelection(int sel) { m_menuSelection = sel; }
     void toggleObstacles() { m_obstaclesEnabled = !m_obstaclesEnabled; }
@@ -128,6 +130,7 @@ private:
     bool m_inMenu = true;
     bool m_showingRules = false;
     bool m_showingHighScores = false;
+    bool m_showingControls = false;
     bool m_aiEnabled = false;
     int m_score = 0;
     float m_tickAccumulator = 0.0f;

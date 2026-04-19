@@ -129,22 +129,24 @@ private:
     }
 
     void handleEscapeKey() {
-        if (m_gameState->isShowingRules() || m_gameState->isShowingHighScores()) {
+        if (m_gameState->isShowingRules() || m_gameState->isShowingHighScores() || m_gameState->isShowingControls()) {
             m_gameState->setShowingRules(false);
             m_gameState->setShowingHighScores(false);
+            m_gameState->setShowingControls(false);
         } else if (m_gameState->isInMenu()) glfwSetWindowShouldClose(m_window, true);
         else { m_gameState->setInMenu(true); m_gameState->setShouldReset(true); }
     }
 
     void handleActionKey() {
         if (m_gameState->isInMenu()) {
-            if (m_gameState->isShowingRules() || m_gameState->isShowingHighScores()) return;
+            if (m_gameState->isShowingRules() || m_gameState->isShowingHighScores() || m_gameState->isShowingControls()) return;
             int sel = m_gameState->getMenuSelection();
             if (sel == 0) { m_gameState->setInMenu(false); m_gameState->setShouldReset(true); }
             else if (sel == 1) m_gameState->toggleObstacles();
             else if (sel == 2) m_gameState->toggleAI();
             else if (sel == 3) m_gameState->setShowingRules(true);
             else if (sel == 4) m_gameState->setShowingHighScores(true);
+            else if (sel == 5) m_gameState->setShowingControls(true);
         } else if (m_gameState->isGameOver()) {
             m_gameState->setShouldReset(true);
         } else {
@@ -153,11 +155,11 @@ private:
     }
 
     void handleMenuNavigation() {
-        if (m_gameState->isShowingRules() || m_gameState->isShowingHighScores()) return;
+        if (m_gameState->isShowingRules() || m_gameState->isShowingHighScores() || m_gameState->isShowingControls()) return;
         if (isKeyJustPressed(GLFW_KEY_UP, m_inputStates.up)) 
-            m_gameState->setMenuSelection((m_gameState->getMenuSelection() - 1 + 5) % 5);
+            m_gameState->setMenuSelection((m_gameState->getMenuSelection() - 1 + 6) % 6);
         if (isKeyJustPressed(GLFW_KEY_DOWN, m_inputStates.down)) 
-            m_gameState->setMenuSelection((m_gameState->getMenuSelection() + 1) % 5);
+            m_gameState->setMenuSelection((m_gameState->getMenuSelection() + 1) % 6);
     }
 
     void handleGameMovement() {

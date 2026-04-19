@@ -121,14 +121,14 @@ TEST_CASE("Basic Game Logic", "[logic]") {
         size_t initialSize = state.getSnake().size();
 
         // Banana Growth and Points (+2)
-        Banana b; b.active = true; b.pos = {16, 7};
+        Banana b; b.active = true; b.pos = {16, 7}; b.timeLeft = 5.0f;
         state.debugSetBanana(b);
         state.update(tick, tick);
         CHECK(state.getScore() == 2);
         CHECK(state.getSnake().size() == initialSize + 1);
 
         // Golden Apple Growth and Points (+5)
-        GoldenApple ga; ga.active = true; ga.pos = {17, 7};
+        GoldenApple ga; ga.active = true; ga.pos = {17, 7}; ga.timeLeft = 7.0f;
         state.debugSetGoldenApple(ga);
         state.update(tick * 2.0f, tick);
         CHECK(state.getScore() == 7); // 2 + 5

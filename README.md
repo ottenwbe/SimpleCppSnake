@@ -5,7 +5,7 @@
 <!-- Note about AI assistance -->
 > **Note:** This project was created with assistance of AI (Gemini Code Assist), with the purpose of testing some capabilites of AI assisted software development.
 
-A modern C++17 Snake implementation utilizing OpenGL (Core Profile), GLFW, and BFS-based AI pathfinding, featuring intelligent AI movement.
+A modern C++20 Snake implementation utilizing OpenGL (Core Profile), GLFW, and BFS-based AI pathfinding, featuring intelligent AI movement.
 
 **Note: This project is specifically targeted for Linux.** It utilizes Linux-specific APIs (such as `/proc/self/exe`) for path resolution and is optimized for Linux-based build environments.
 
@@ -26,7 +26,8 @@ A modern C++17 Snake implementation utilizing OpenGL (Core Profile), GLFW, and B
 To build this project, you need the following tools installed on your system:
 
 *   **C++ Compiler**: GCC, Clang, or MSVC (supporting C++17).
-*   **CMake**: Version 3.15 or higher.
+*   **C++ Compiler**: GCC 13+, Clang 15+, or MSVC (supporting C++20).
+*   **CMake**: Version 3.23 or higher.
 *   **Conan**: The C/C++ Package Manager (Install via `pip install conan`).
 *   **System Headers**: Ensure OpenGL and X11 development headers are installed (e.g., `libgl1-mesa-dev`, `libx11-dev` on Ubuntu).
 

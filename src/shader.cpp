@@ -49,7 +49,7 @@ void Shader::use() const {
 }
 
 int Shader::getUniformLocation(const std::string& name) const {
-    if (m_uniformCache.find(name) != m_uniformCache.end()) {
+    if (m_uniformCache.contains(name)) {
         return m_uniformCache[name];
     }
     int location = glGetUniformLocation(ID, name.c_str());

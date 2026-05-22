@@ -21,7 +21,7 @@ Direction AIPathfinder::getNextMove(
 
         if (isInsideGrid(next) && next.x >= 0 && next.x < Config::GRID_WIDTH && next.y >= 0 && next.y < Config::GRID_HEIGHT && !blocked[(int)next.x][(int)next.y]) {
             if (next == target) return d;
-            q.push({next, d});
+            q.push({.pos = next, .firstMove = d});
             blocked[(int)next.x][(int)next.y] = true;
         }
     }

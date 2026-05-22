@@ -1,7 +1,7 @@
 [requires]
 glfw/3.4
 glm/1.0.1
-freetype/2.14.1
+freetype/2.14.3
 spdlog/1.17.0
 opengl/system
 catch2/3.7.1

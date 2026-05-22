@@ -7,6 +7,7 @@
 #include <spdlog/spdlog.h>
 #include <vector>
 #include <algorithm>
+#include <format>
 
 #include "renderer.hpp"
 #include "shaders.hpp"
@@ -100,8 +101,12 @@ void Renderer::renderMenu(GameState& state) {
             renderTextCentered("No scores yet. Go play!", m_screenHeight / 2.0f + 50.0f, 0.6f, glm::vec3(0.7));
         } else {
             for (size_t i = 0; i < entries.size(); ++i) {
-                    std::string hs = std::to_string(i + 1) + ". " + std::to_string(entries[i].score) +
-                                 (entries[i].aiUsed ? " (AI)" : " (No AI)") + (entries[i].obstaclesEnabled ? " (Obs)" : " (No Obs)");
+                std::string hs = std::format("{}. {} {} {}", 
+                    i + 1, 
+                    entries[i].score,
+                    entries[i].aiUsed ? "(AI)" : "(No AI)",
+                    entries[i].obstaclesEnabled ? "(Obs)" : "(No Obs)"
+                );
                 renderTextCentered(hs, m_screenHeight / 2.0f + 110.0f - i * 40.0f, 0.6f, glm::vec3(1.0, 0.9, 0.3));
             }
         }
@@ -122,17 +127,18 @@ void Renderer::renderMenu(GameState& state) {
         renderTextCentered("SETTINGS", m_screenHeight / 2.0f + 200.0f, 1.0f, glm::vec3(0.0, 0.8, 0.2));
 
         glm::vec3 speedCol = (state.getMenuSelection() == 0) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
-        std::string speedText = "Initial Speed: ";
-        if (state.getInitialSpeedSetting() == 0) speedText += "Easy";
-        else if (state.getInitialSpeedSetting() == 1) speedText += "Medium";
-        else speedText += "Hard";
+        std::string_view speedName = "Medium";
+        if (state.getInitialSpeedSetting() == 0) speedName = "Easy";
+        else if (state.getInitialSpeedSetting() == 2) speedName = "Hard";
+        
+        std::string speedText = std::format("Initial Speed: {}", speedName);
         renderTextCentered(speedText, m_screenHeight / 2.0f + 50.0f, 0.7f, speedCol);
 
         glm::vec3 obsCol = (state.getMenuSelection() == 1) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
-        renderTextCentered("Obstacle Spawning: " + std::string(state.areObstaclesEnabled() ? "ON" : "OFF"), m_screenHeight / 2.0f + 0.0f, 0.7f, obsCol);
+        renderTextCentered(std::format("Obstacle Spawning: {}", state.areObstaclesEnabled() ? "ON" : "OFF"), m_screenHeight / 2.0f + 0.0f, 0.7f, obsCol);
 
         glm::vec3 aiCol = (state.getMenuSelection() == 2) ? glm::vec3(1.0, 1.0, 0.0) : glm::vec3(1.0);
-        renderTextCentered("AI Auto-Pilot: " + std::string(state.isAIEnabled() ? "ON" : "OFF"), m_screenHeight / 2.0f - 50.0f, 0.7f, aiCol);
+        renderTextCentered(std::format("AI Auto-Pilot: {}", state.isAIEnabled() ? "ON" : "OFF"), m_screenHeight / 2.0f - 50.0f, 0.7f, aiCol);
 
         renderTextCentered("Use ARROW KEYS to adjust", m_screenHeight / 2.0f - 110.0f, 0.5f, glm::vec3(0.7));
         renderTextCentered("Press ESC to return to Menu", m_screenHeight / 2.0f - 150.0f, 0.6f, glm::vec3(0.7));
@@ -217,7 +223,7 @@ void Renderer::drawObject(RenderType type, const glm::vec2* positions, size_t co
 
 void Renderer::renderUI(GameState& state, int winW, int winH) {
     glViewport(0, 0, winW, winH);
-    renderText("Points: " + std::to_string(state.getScore()), 20.0f, m_screenHeight - 40.0f, 0.5f, glm::vec3(1.0f));
+    renderText(std::format("Points: {}", state.getScore()), 20.0f, m_screenHeight - 40.0f, 0.5f, glm::vec3(1.0f));
     
     if (state.isAIEnabled() && !state.isGameOver())
         renderText("AI AUTO-PILOT ENABLED [I]", m_screenWidth - 300.0f, m_screenHeight - 40.0f, 0.4f, glm::vec3(0.0f, 1.0f, 1.0f));
@@ -233,7 +239,7 @@ void Renderer::renderUI(GameState& state, int winW, int winH) {
     if (state.isGameOver()) {
         renderTextCentered("GAME OVER", m_screenHeight / 2.0f + 100.0f, 1.0f, glm::vec3(1.0, 0.2, 0.2));
         if (state.isNewTopScore()) renderTextCentered("NEW TOP 5 SCORE!", m_screenHeight / 2.0f + 50.0f, 0.7f, glm::vec3(1.0, 0.8, 0.0));
-        renderTextCentered("SCORE: " + std::to_string(state.getScore()), m_screenHeight / 2.0f, 0.8f, glm::vec3(1.0));
+        renderTextCentered(std::format("SCORE: {}", state.getScore()), m_screenHeight / 2.0f, 0.8f, glm::vec3(1.0));
         renderTextCentered("Press Space to Restart", m_screenHeight / 2.0f - 60.0f, 0.7f, glm::vec3(0.8));
         renderTextCentered("Press ESC to Menu", m_screenHeight / 2.0f - 100.0f, 0.6f, glm::vec3(0.6));
     }
@@ -242,9 +248,8 @@ void Renderer::renderUI(GameState& state, int winW, int winH) {
 float Renderer::getTextWidth(const std::string& text, float scale) {
     float width = 0.0f;
     for (char c : text) {
-        auto it = m_characters.find(c);
-        if (it != m_characters.end()) {
-            width += (it->second.Advance >> 6) * scale;
+        if (m_characters.contains(c)) {
+            width += (m_characters.at(c).Advance >> 6) * scale;
         }
     }
     return width;

@@ -21,3 +21,6 @@ highscore.txt
 # Editor-specific files (VSCode, etc.)
 .vscode/
 *.user
+
+# Local tool configuration
+.ort.yml

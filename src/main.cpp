@@ -34,29 +34,32 @@ public:
 
     void run() {
         while (!glfwWindowShouldClose(m_window)) {
-            float currentTime = static_cast<float>(glfwGetTime());
-            float deltaTime = currentTime - m_lastFrameTime;
+            const float currentTime = static_cast<float>(glfwGetTime());
+            const float deltaTime = currentTime - m_lastFrameTime;
             m_lastFrameTime = currentTime;
 
-            // 1. Process User Input
-            processInput();
-
-            // 2. State Management (Reset logic)
-            if (m_gameState->shouldReset()) {
-                m_gameState->updateHighScores();
-                m_gameState->reset(currentTime);
-            }
-
-            // 3. Game Logic Update
-            m_gameState->update(currentTime, deltaTime);
-
-            // 4. Rendering
-            int winW, winH;
-            updateViewportAndProjection(winW, winH);
-            m_renderer.render(*m_gameState, winW, winH);
-
-            glfwSwapBuffers(m_window);
+            updateFrame(currentTime, deltaTime);
+            renderFrame();
         }
+    }
+
+    void updateFrame(float currentTime, float deltaTime) {
+        processInput();
+
+        if (m_gameState->shouldReset()) {
+            m_gameState->updateHighScores();
+            m_gameState->reset(currentTime);
+        }
+
+        m_gameState->update(currentTime, deltaTime);
+    }
+
+    void renderFrame() {
+        int winW = 0;
+        int winH = 0;
+        updateViewportAndProjection(winW, winH);
+        m_renderer.render(*m_gameState, winW, winH);
+        glfwSwapBuffers(m_window);
     }
 
 private:

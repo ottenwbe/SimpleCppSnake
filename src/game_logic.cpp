@@ -5,10 +5,14 @@
 #include <limits.h>
 
 std::string getExecutableDir() {
-    char result[PATH_MAX];
-    ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
-    if (count <= 0) return ".";
-    return std::filesystem::path(std::string(result, count)).parent_path().string();
+#if defined(__linux__) || defined(__APPLE__)
+    std::error_code ec;
+    auto exePath = std::filesystem::canonical("/proc/self/exe", ec);
+    if (ec) return ".";
+    return exePath.parent_path().string();
+#else
+    return ".";
+#endif
 }
 
 GameState::GameState() : m_rng(std::random_device{}()) {
@@ -50,20 +54,37 @@ void GameState::generateNewFood() {
     std::vector<glm::vec2> others;
     if (m_banana.active) others.push_back(m_banana.pos);
     if (m_goldenApple.active) others.push_back(m_goldenApple.pos);
-    m_food = getRandomEmptyPosition(others);
+
+    glm::vec2 nextFood = getRandomEmptyPosition(others);
+    if (!isInsideGrid(nextFood)) return;
+    m_food = nextFood;
 }
 
 void GameState::generateBanana() {
     std::vector<glm::vec2> others = {m_food};
     if (m_goldenApple.active) others.push_back(m_goldenApple.pos);
-    m_banana.pos = getRandomEmptyPosition(others);
+
+    glm::vec2 bananaPos = getRandomEmptyPosition(others);
+    if (!isInsideGrid(bananaPos)) {
+        m_banana.active = false;
+        return;
+    }
+
+    m_banana.pos = bananaPos;
     m_banana.active = true;
 }
 
 void GameState::generateGoldenApple() {
     std::vector<glm::vec2> others = {m_food};
     if (m_banana.active) others.push_back(m_banana.pos);
-    m_goldenApple.pos = getRandomEmptyPosition(others);
+
+    glm::vec2 applePos = getRandomEmptyPosition(others);
+    if (!isInsideGrid(applePos)) {
+        m_goldenApple.active = false;
+        return;
+    }
+
+    m_goldenApple.pos = applePos;
     m_goldenApple.active = true;
 }
 
@@ -71,7 +92,10 @@ void GameState::generateObstacle() {
     std::vector<glm::vec2> others = {m_food};
     if (m_banana.active) others.push_back(m_banana.pos);
     if (m_goldenApple.active) others.push_back(m_goldenApple.pos);
-    m_obstacles.push_back(getRandomEmptyPosition(others));
+
+    glm::vec2 obstaclePos = getRandomEmptyPosition(others);
+    if (!isInsideGrid(obstaclePos)) return;
+    m_obstacles.push_back(obstaclePos);
 }
 
 void GameState::reset(float /*currentTime*/) {

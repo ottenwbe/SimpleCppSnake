@@ -25,6 +25,13 @@ namespace Config {
 enum class Direction { UP, DOWN, LEFT, RIGHT };
 enum class GameScene { Menu, Rules, HighScores, Controls, Settings, Gameplay };
 
+inline bool isOppositeDirection(Direction a, Direction b) {
+    return (a == Direction::UP && b == Direction::DOWN) ||
+           (a == Direction::DOWN && b == Direction::UP) ||
+           (a == Direction::LEFT && b == Direction::RIGHT) ||
+           (a == Direction::RIGHT && b == Direction::LEFT);
+}
+
 inline glm::vec2 getDirectionOffset(Direction dir) {
     switch (dir) {
         case Direction::UP:    return {0, 1};
@@ -79,7 +86,11 @@ public:
     HighScoreManager& getHighScoreManager() { return m_highScores; }
 
     // Mutators for Input Handling
-    void setDirection(Direction dir) { if (!m_paused && !m_gameOver) m_snakeDirection = dir; }
+    void setDirection(Direction dir) {
+        if (m_paused || m_gameOver) return;
+        if (isOppositeDirection(m_snakeDirection, dir)) return;
+        m_snakeDirection = dir;
+    }
     void setShouldReset(bool val) { m_shouldReset = val; }
     void togglePause() { if (!m_gameOver && m_currentScene == GameScene::Gameplay) m_paused = !m_paused; }
     void setScene(GameScene scene) { m_currentScene = scene; }

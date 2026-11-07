@@ -62,6 +62,19 @@ TEST_CASE("Basic Game Logic", "[logic]") {
         CHECK(state.getDirection() == Direction::UP);
     }
 
+    SECTION("Direction reversal prevention") {
+        state.reset();
+        state.setScene(GameScene::Gameplay);
+
+        state.setDirection(Direction::RIGHT);
+        state.setDirection(Direction::LEFT);
+        CHECK(state.getDirection() == Direction::RIGHT);
+
+        state.setDirection(Direction::UP);
+        state.setDirection(Direction::DOWN);
+        CHECK(state.getDirection() == Direction::UP);
+    }
+
     SECTION("Pause and Menu behavior") {
         state.reset(0.0f);
         state.setScene(GameScene::Gameplay);

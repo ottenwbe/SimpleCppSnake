@@ -3,7 +3,7 @@
 [![C++ CI](https://github.com/ottenwbe/SimpleCppSnake/actions/workflows/ci.yml/badge.svg)](https://github.com/ottenwbe/SimpleCppSnake/actions/workflows/ci.yml)
 
 <!-- Note about AI assistance -->
-> **Note:** This project was created with assistance of AI (Gemini Code Assist), with the purpose of testing some capabilites of AI assisted software development.
+> **Note:** This project was created with assistance from GitHub Copilot and Gemini Code Assist, to explore the capabilities of AI-assisted software development.
 
 A modern C++20 Snake implementation utilizing OpenGL (Core Profile), GLFW, and BFS-based AI pathfinding, featuring intelligent AI movement.
 
